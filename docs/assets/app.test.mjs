@@ -258,6 +258,9 @@ test('daily workflow uses committed Linux binary for report generation', () => {
   assert.equal(existsSync(linuxBinaryPath), true);
   assert.match(workflowText, /\.\/bin\/randomness-reporter -config \.\/config\/sources\.json -output \.\/docs\/results/);
   assert.doesNotMatch(workflowText, /go run \.\/cmd\/randomness-reporter/);
+  assert.match(workflowText, /push:/);
+  assert.match(workflowText, /bin\/randomness-reporter/);
+  assert.doesNotMatch(workflowText, /docs\/results\/\*\*/);
 });
 
 test('buildPageTabState activates one top-level page tab and page', () => {

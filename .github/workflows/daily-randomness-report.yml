@@ -4,6 +4,20 @@ on:
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/daily-randomness-report.yml'
+      - 'bin/randomness-reporter'
+      - 'cmd/**'
+      - 'config/**'
+      - 'internal/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'docs/assets/**'
+      - 'docs/index.html'
+      - 'docs/content/**'
 
 permissions:
   contents: write
