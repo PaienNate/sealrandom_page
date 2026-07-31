@@ -7,6 +7,10 @@ type DiceSource interface {
 	Uint64() uint64
 }
 
+type byteFiller interface {
+	FillBytes([]byte) error
+}
+
 type InsecurityProofProvider interface {
 	InsecurityProof() (any, error)
 }
@@ -16,6 +20,12 @@ func FillRandomnessBuffer(src DiceSource, buf []byte) {
 }
 
 func fillRandomnessBuffer(src DiceSource, buf []byte) {
+	if filler, ok := src.(byteFiller); ok {
+		if err := filler.FillBytes(buf); err == nil {
+			return
+		}
+	}
+
 	for offset := 0; offset < len(buf); offset += 8 {
 		v := src.Uint64()
 		remain := len(buf) - offset

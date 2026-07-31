@@ -64,13 +64,20 @@ func newReaderDiceSource(reader io.Reader) DiceSource {
 }
 
 func (s *readerDiceSource) Uint64() uint64 {
+	var data [8]byte
+	if err := s.FillBytes(data[:]); err == nil {
+		return binary.BigEndian.Uint64(data[:])
+	}
+	return 0
+}
+
+func (s *readerDiceSource) FillBytes(buf []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.reader != nil {
-		var data [8]byte
-		if _, err := io.ReadFull(s.reader, data[:]); err == nil {
-			return binary.BigEndian.Uint64(data[:])
+		if _, err := io.ReadFull(s.reader, buf); err == nil {
+			return nil
 		}
 		s.reader = nil
 	}
@@ -83,7 +90,8 @@ func (s *readerDiceSource) Uint64() uint64 {
 		}
 		s.fallback = newPCGDiceSource(seed1, seed2)
 	}
-	return s.fallback.Uint64()
+	fillRandomnessBuffer(s.fallback, buf)
+	return nil
 }
 
 func newNISTCTRSource() (DiceSource, error) {
@@ -140,4 +148,20 @@ func (s *hybridDiceSource) Uint64() uint64 {
 		}
 	}
 	return value
+}
+
+func (s *hybridDiceSource) FillBytes(buf []byte) error {
+	clear(buf)
+	scratch := make([]byte, len(buf))
+	for _, src := range s.sources {
+		if src == nil {
+			continue
+		}
+		clear(scratch)
+		fillRandomnessBuffer(src, scratch)
+		for i, value := range scratch {
+			buf[i] ^= value
+		}
+	}
+	return nil
 }

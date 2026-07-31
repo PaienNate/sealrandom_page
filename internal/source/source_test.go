@@ -16,6 +16,39 @@ func (s *stubDiceSource) Uint64() uint64 {
 	return v
 }
 
+type bulkDiceSource struct {
+	fillCalls int
+	uintCalls int
+}
+
+func (s *bulkDiceSource) Uint64() uint64 {
+	s.uintCalls++
+	return 0
+}
+
+func (s *bulkDiceSource) FillBytes(buf []byte) error {
+	s.fillCalls++
+	copy(buf, []byte{1, 2, 3, 4, 5})
+	return nil
+}
+
+func TestFillRandomnessBufferUsesBulkFillWhenAvailable(t *testing.T) {
+	src := &bulkDiceSource{}
+	buf := make([]byte, 5)
+
+	fillRandomnessBuffer(src, buf)
+
+	if src.fillCalls != 1 {
+		t.Fatalf("fill calls = %d, want 1", src.fillCalls)
+	}
+	if src.uintCalls != 0 {
+		t.Fatalf("uint64 calls = %d, want 0", src.uintCalls)
+	}
+	if string(buf) != string([]byte{1, 2, 3, 4, 5}) {
+		t.Fatalf("unexpected buffer: %v", buf)
+	}
+}
+
 func TestFillRandomnessBufferWritesFullWordsAndTail(t *testing.T) {
 	src := &stubDiceSource{
 		values: []uint64{
