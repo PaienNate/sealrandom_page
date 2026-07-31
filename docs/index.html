@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>随机源检测看板</title>
+  <link rel="stylesheet" href="./assets/app.css">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div>
+        <p class="eyebrow">Randomness</p>
+        <h1>随机源检测实验台</h1>
+        <p class="muted">Factory-mode statistical evidence for generated binary sequences.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <h2>数据源</h2>
+          <button id="refresh" class="ghost">刷新</button>
+        </div>
+        <div id="source-list" class="source-list"></div>
+      </div>
+      <section id="visualization-panel" class="panel visualization-panel">
+        <div class="panel-header visualization-header">
+          <div>
+            <p class="eyebrow">Bitmap</p>
+            <h2>随机源图片生成</h2>
+          </div>
+        </div>
+        <p class="visualization-description">一种检验随机数生成器的方法是将它产生的数字可视化。人类非常擅长识别模式，而可视化能让你直接用眼睛和大脑进行这项观察。</p>
+        <p class="visualization-note">点击放大以查看是否具有规律</p>
+        <button id="visualization-open" class="visualization-thumb-button" type="button" aria-label="点击放大以查看是否具有规律">
+          <span id="visualization-frame" class="visualization-frame"></span>
+        </button>
+        <p id="visualization-source" class="visualization-source">--</p>
+      </section>
+      <p id="status" class="status"></p>
+    </aside>
+
+    <main class="content">
+      <nav class="page-tabs" aria-label="主视图">
+        <button class="page-tab active" type="button" data-page-tab="report" aria-selected="true">检测报告</button>
+        <button class="page-tab" type="button" data-page-tab="faq" aria-selected="false">FAQ</button>
+      </nav>
+
+      <div class="page-view active" data-page-view="report">
+        <section id="summary" class="summary"></section>
+
+        <section class="toolbar">
+          <div class="toolbar-group">
+            <span class="toolbar-label">周期</span>
+            <div id="period-controls" class="chips"></div>
+          </div>
+          <div class="toolbar-group">
+            <span class="toolbar-label">视图</span>
+            <div id="tab-controls" class="tabs"></div>
+          </div>
+        </section>
+
+        <section class="chart-grid">
+          <section class="chart-panel wide">
+            <div id="trend-chart" class="chart"></div>
+          </section>
+          <section class="chart-panel">
+            <div id="latest-chart" class="chart"></div>
+          </section>
+        </section>
+
+        <section class="analysis-grid">
+          <section class="panel glossary-panel">
+            <div class="panel-header">
+              <h2>专业口径</h2>
+            </div>
+            <div id="technical-glossary" class="glossary-grid"></div>
+          </section>
+
+          <section class="panel detail-panel">
+            <div class="panel-header">
+              <h2 id="detail-source-title">最新一轮专业解读</h2>
+            </div>
+            <div id="test-detail-list" class="test-detail-list"></div>
+          </section>
+        </section>
+      </div>
+
+      <div class="page-view" data-page-view="faq" hidden>
+        <section class="panel faq-page">
+          <div class="panel-header faq-header">
+            <div>
+              <p class="eyebrow">RANDOM.ORG FAQ</p>
+              <h2>随机数 FAQ</h2>
+            </div>
+            <a class="source-link" href="./content/random-org-faq.zh.md">编辑 Markdown</a>
+          </div>
+          <article id="faq-content" class="markdown-body" data-faq-markdown="./content/random-org-faq.zh.md">加载 FAQ 中...</article>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div id="visualization-modal" class="visualization-modal" hidden>
+    <div class="visualization-modal-panel" role="dialog" aria-modal="true" aria-labelledby="visualization-modal-title">
+      <div class="panel-header visualization-modal-header">
+        <div>
+          <p class="eyebrow">Bitmap</p>
+          <h2 id="visualization-modal-title">随机源图片生成</h2>
+        </div>
+        <button id="visualization-close" class="ghost" type="button">关闭</button>
+      </div>
+      <p class="visualization-description">一种检验随机数生成器的方法是将它产生的数字可视化。人类非常擅长识别模式，而可视化能让你直接用眼睛和大脑进行这项观察。虽然不应将这种方法视为详尽或正式的分析，但它是一种快速直观了解特定生成器性能的好方式。下面展示的位图为最新一次随机源生成的图片。</p>
+      <div id="visualization-modal-frame" class="visualization-modal-frame"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./assets/app.mjs"></script>
+</body>
+</html>

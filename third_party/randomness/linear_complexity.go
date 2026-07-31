@@ -1,0 +1,222 @@
+// Copyright (c) 2021 Quan guanyu
+// randomness is licensed under Mulan PSL v2.
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
+//          http://license.coscl.org.cn/MulanPSL2
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+// See the Mulan PSL v2 for more details.
+
+package randomness
+
+import (
+	"math"
+	"runtime"
+	"sync"
+)
+
+// LinearComplexity 线型复杂度检测,m=500
+func LinearComplexity(data []byte) *TestResult {
+	p, q := LinearComplexityTestBytes(data, 500)
+	return &TestResult{Name: "线型复杂度检测(m=500)", P: p, Q: q, Pass: p >= Alpha}
+}
+
+// LinearComplexityTest 线型复杂度检测,m=500
+func LinearComplexityTest(bits []bool) (float64, float64) {
+	return LinearComplexityProto(bits, 500)
+}
+
+// LinearComplexityTestBytes 线型复杂度检测
+// data: 待检测序列
+// m: m长度
+func LinearComplexityTestBytes(data []byte, m int) (float64, float64) {
+	return LinearComplexityProto(B2bitArr(data), m)
+}
+
+// LinearComplexityProto 线型复杂度检测
+// bits: 待检测序列
+// m: m长度
+func LinearComplexityProto(bits []bool, m int) (float64, float64) {
+	n := len(bits)
+	N := n / m
+	if N == 0 {
+		panic("please provide valid test bits")
+	}
+
+	// 根据数据量选择串行或并行策略
+	// 阈值设定：当数据块数量少于 50 或总数据量少于 50000 bits 时使用串行
+	if N < 50 || n < 50000 {
+		return LinearComplexityProtoSerial(bits, m)
+	}
+
+	return LinearComplexityProtoParallel(bits, m)
+}
+
+// LinearComplexityProtoSerial 串行版本的线性复杂度检测
+func LinearComplexityProtoSerial(bits []bool, m int) (float64, float64) {
+	n := len(bits)
+	N := n / m
+
+	var v = [7]float64{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}
+	var pi = [7]float64{0.010417, 0.03125, 0.12500, 0.5000, 0.25000, 0.06250, 0.020833}
+	var V float64 = 0.0
+	var P float64 = 0
+
+	// Step 3, miu - 预计算 _1_m
+	var _1_m float64
+	if m%2 == 0 {
+		_1_m = 1.0
+	} else {
+		_1_m = -1.0
+	}
+	miu := float64(m)/2.0 + (9.0+_1_m)/36.0 - (float64(m)/3.0+2.0/9.0)/math.Pow(2.0, float64(m))
+
+	// 预分配数组，避免重复分配
+	arr := make([]bool, m)
+
+	// Step 2, 4, 5 - 串行循环
+	bitsIndex := 0
+	for i := 0; i < N; i++ {
+		// 避免切片操作，直接使用索引
+		for j := 0; j < m; j++ {
+			arr[j] = bits[bitsIndex]
+			bitsIndex++
+		}
+
+		complexity := linearComplexity(arr, m)
+		T := _1_m*(float64(complexity)-miu) + 2.0/9.0
+
+		// 优化条件判断顺序，从最可能的情况开始
+		if T > 2.5 {
+			v[6]++
+		} else if T > 1.5 {
+			v[5]++
+		} else if T > 0.5 {
+			v[4]++
+		} else if T > -0.5 {
+			v[3]++
+		} else if T > -1.5 {
+			v[2]++
+		} else if T > -2.5 {
+			v[1]++
+		} else {
+			v[0]++
+		}
+	}
+
+	// Step 6 - 优化循环，使用局部变量
+	NFloat := float64(N)
+	for i := 0; i < 7; i++ {
+		diff := v[i] - NFloat*pi[i]
+		V += diff * diff / (NFloat * pi[i])
+	}
+
+	// Step 7
+	P = igamc(3.0, V/2.0)
+
+	return P, P
+}
+
+// LinearComplexityProtoParallel 并行版本的线性复杂度检测
+func LinearComplexityProtoParallel(bits []bool, m int) (float64, float64) {
+	n := len(bits)
+	N := n / m
+
+	var v = [7]float64{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}
+	var pi = [7]float64{0.010417, 0.03125, 0.12500, 0.5000, 0.25000, 0.06250, 0.020833}
+	var V float64 = 0.0
+	var P float64 = 0
+
+	// Step 3, miu - 预计算 _1_m
+	var _1_m float64
+	if m%2 == 0 {
+		_1_m = 1.0
+	} else {
+		_1_m = -1.0
+	}
+	miu := float64(m)/2.0 + (9.0+_1_m)/36.0 - (float64(m)/3.0+2.0/9.0)/math.Pow(2.0, float64(m))
+
+	// 并行计算各个块的线性复杂度
+	numWorkers := runtime.NumCPU()
+	if numWorkers > N {
+		numWorkers = N
+	}
+
+	// 创建通道和等待组
+	jobs := make(chan int, N)
+	results := make(chan [7]float64, N)
+	var wg sync.WaitGroup
+
+	// 启动工作协程
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// 每个协程分配自己的数组，避免竞争
+			arr := make([]bool, m)
+			localV := [7]float64{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}
+
+			for blockIndex := range jobs {
+				// 计算当前块的起始位置
+				startPos := blockIndex * m
+
+				// 复制当前块的数据
+				copy(arr, bits[startPos:startPos+m])
+
+				complexity := linearComplexity(arr, m)
+				T := _1_m*(float64(complexity)-miu) + 2.0/9.0
+
+				// 分类统计
+				if T > 2.5 {
+					localV[6]++
+				} else if T > 1.5 {
+					localV[5]++
+				} else if T > 0.5 {
+					localV[4]++
+				} else if T > -0.5 {
+					localV[3]++
+				} else if T > -1.5 {
+					localV[2]++
+				} else if T > -2.5 {
+					localV[1]++
+				} else {
+					localV[0]++
+				}
+			}
+
+			results <- localV
+		}()
+	}
+
+	// 分发任务
+	go func() {
+		for i := 0; i < N; i++ {
+			jobs <- i
+		}
+		close(jobs)
+	}()
+
+	// 等待所有工作协程完成
+	wg.Wait()
+	close(results)
+
+	// 合并结果
+	for localV := range results {
+		for i := 0; i < 7; i++ {
+			v[i] += localV[i]
+		}
+	}
+
+	// Step 6 - 优化循环，使用局部变量
+	NFloat := float64(N)
+	for i := 0; i < 7; i++ {
+		diff := v[i] - NFloat*pi[i]
+		V += diff * diff / (NFloat * pi[i])
+	}
+
+	// Step 7
+	P = igamc(3.0, V/2.0)
+
+	return P, P
+}

@@ -1,0 +1,462 @@
+package randomness
+
+import (
+	"bufio"
+	rand2 "crypto/rand"
+	"fmt"
+	"io/ioutil"
+	"math"
+	"os"
+	"strings"
+)
+
+const (
+	MAXLOG float64 = 7.09782712893383996732224e2 // log(MAXNUM)
+	biginv float64 = 2.22044604925031308085e-16
+	big    float64 = 4.503599627370496e15
+	MACHEP float64 = 1.11022302462515654042e-16
+)
+
+func subsequencepattern(bits []bool, m int) int {
+	tmp := 0
+	var b bool
+	for j := 0; j < m; j++ {
+		tmp <<= 1
+		b, bits = bits[0], bits[1:]
+		if b {
+			tmp++
+		}
+	}
+	return tmp
+}
+
+func igam(a, x float64) float64 {
+	var ans, ax, c, r float64
+
+	if (x <= 0) || (a <= 0) {
+		return 0.0
+	}
+
+	if (x > 1.0) && (x > a) {
+		return 1.e0 - igamc(a, x)
+	}
+
+	/* Compute  x**a * exp(-x) / gamma(a)  */
+	ax = a*math.Log(x) - x - logGamma(a)
+	if ax < -MAXLOG {
+		return 0.0
+	}
+	ax = math.Exp(ax)
+
+	/* power series */
+	r = a
+	c = 1.0
+	ans = 1.0
+
+	for {
+		r += 1.0
+		c *= x / r
+		ans += c
+		if !(c/ans > MACHEP) {
+			break
+		}
+	}
+
+	return ans * ax / a
+}
+
+func logGamma(x float64) float64 {
+	res, sign := math.Lgamma(x)
+	return res * float64(sign)
+}
+
+func Igamc(a, x float64) float64 {
+	return igamc(a, x)
+}
+
+func igamc(a, x float64) float64 {
+	var ans, ax, c, yc, r, t, y, z float64
+	var pk, pkm1, pkm2, qk, qkm1, qkm2 float64
+
+	if (x <= 0) || (a <= 0) {
+		return (1.0)
+	}
+
+	if (x < 1.0) || (x < a) {
+		return (1.e0 - igam(a, x))
+	}
+
+	ax = a*math.Log(x) - x - logGamma(a)
+
+	if ax < -MAXLOG {
+		return 0.0
+	}
+	ax = math.Exp(ax)
+
+	/* continued fraction */
+	y = 1.0 - a
+	z = x + y + 1.0
+	c = 0.0
+	pkm2 = 1.0
+	qkm2 = x
+	pkm1 = x + 1.0
+	qkm1 = z * x
+	ans = pkm1 / qkm1
+
+	for {
+		c += 1.0
+		y += 1.0
+		z += 2.0
+		yc = y * c
+		pk = pkm1*z - pkm2*yc
+		qk = qkm1*z - qkm2*yc
+		if qk != 0 {
+			r = pk / qk
+			t = math.Abs((ans - r) / r)
+			ans = r
+		} else {
+			t = 1.0
+		}
+		pkm2 = pkm1
+		pkm1 = pk
+		qkm2 = qkm1
+		qkm1 = qk
+		if math.Abs(pk) > big {
+			pkm2 *= biginv
+			pkm1 *= biginv
+			qkm2 *= biginv
+			qkm1 *= biginv
+		}
+		if !(t > MACHEP) {
+			break
+		}
+	}
+	return ans * ax
+}
+
+func normal_CDF(x float64) float64 {
+	return (1 + math.Erf(x/math.Sqrt(2))) / 2
+}
+
+func rank(matrix [][]int, m int) int {
+	temp := make([][]int, m)
+	for i := 0; i < m; i++ {
+		temp[i] = make([]int, m)
+		for j := 0; j < m; j++ {
+			temp[i][j] = matrix[i][j]
+		}
+	}
+
+	rowEchelon(temp, m)
+	rank := 0
+	for i := 0; i < m; i++ {
+		notZero := false
+		for j := 0; j < m; j++ {
+			if temp[i][j] != 0 {
+				notZero = true
+			}
+		}
+		if notZero {
+			rank++
+		}
+	}
+	return rank
+}
+
+func rowEchelon(matrix [][]int, m int) {
+	pivotstartrow := 0
+	pivotstartcol := 0
+	pivotrow := 0
+	for i := 0; i < m; i++ {
+		found := false
+		for k := pivotstartrow; k < m; k++ {
+			if matrix[k][pivotstartcol] == 1 {
+				found = true
+				pivotrow = k
+				break
+			}
+		}
+		if found {
+			if pivotrow != pivotstartrow {
+				for k := 0; k < m; k++ {
+					matrix[pivotrow][k] ^= matrix[pivotstartrow][k]
+					matrix[pivotstartrow][k] ^= matrix[pivotrow][k]
+					matrix[pivotrow][k] ^= matrix[pivotstartrow][k]
+				}
+			}
+			for j := pivotstartrow + 1; j < m; j++ {
+				if matrix[j][pivotstartcol] == 1 {
+					for k := 0; k < m; k++ {
+						matrix[j][k] = matrix[pivotstartrow][k] ^ matrix[j][k]
+					}
+				}
+			}
+
+			pivotstartcol += 1
+			pivotstartrow += 1
+		} else {
+			pivotstartcol += 1
+		}
+	}
+}
+
+func linearComplexity(a []bool, M int) int {
+	var N_ int = 0
+	var L int = 0
+	var m int = -1
+	var d int = 0
+
+	// 预分配数组并初始化
+	B_ := make([]int, M)
+	C := make([]int, M)
+	P := make([]int, M)
+	T := make([]int, M)
+
+	C[0] = 1
+	B_[0] = 1
+
+	for N_ < M {
+		// 计算 d = a[N_] + sum(C[i]*a[N_-i]) mod 2
+		d = b2i(a[N_])
+		for i := 1; i <= L; i++ {
+			if C[i] == 1 {
+				d ^= b2i(a[N_-i])
+			}
+		}
+
+		if d == 1 {
+			// 复制 C 到 T
+			copy(T, C)
+			// 清零 P
+			for i := range P {
+				P[i] = 0
+			}
+
+			// 计算 P = B_ shifted by (N_-m)
+			shift := N_ - m
+			for j := 0; j < M; j++ {
+				if B_[j] == 1 && j+shift < M {
+					P[j+shift] = 1
+				}
+			}
+
+			// C = C + P mod 2 (使用 XOR)
+			for i := 0; i < M; i++ {
+				C[i] ^= P[i]
+			}
+
+			if L <= N_/2 {
+				L = N_ + 1 - L
+				m = N_
+				// 复制 T 到 B_
+				copy(B_, T)
+			}
+		}
+		N_++
+	}
+	return L
+}
+
+func b2i(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func pow2DoubleArr(data []float64) []float64 {
+	// 创建新数组
+	var newData []float64
+
+	dataLength := len(data)
+
+	sumNum := 2
+	for sumNum < dataLength {
+		sumNum = sumNum * 2
+	}
+	addLength := sumNum - dataLength
+
+	if addLength != 0 {
+		newData = make([]float64, sumNum)
+		copy(newData, data)
+		for i := dataLength; i < sumNum; i++ {
+			newData[i] = 0
+		}
+	} else {
+		newData = data
+	}
+
+	return newData
+}
+
+func ceilPow2(N int) int {
+	i := 2
+	for {
+		if i >= N {
+			return i
+		}
+		i <<= 1
+	}
+}
+
+// B2bit 字节 转换为 bool数组
+func B2bit(b byte) []bool {
+	//b&0b10000000 > 0,
+	//b&0b01000000 > 0,
+	//b&0b00100000 > 0,
+	//b&0b00010000 > 0,
+	//b&0b00001000 > 0,
+	//b&0b00000100 > 0,
+	//b&0b00000010 > 0,
+	//b&0b00000001 > 0,
+	return []bool{
+		b&0x80 > 0,
+		b&0x40 > 0,
+		b&0x20 > 0,
+		b&0x10 > 0,
+		b&0x08 > 0,
+		b&0x04 > 0,
+		b&0x02 > 0,
+		b&0x01 > 0,
+	}
+}
+
+// B2Byte bool数组 转换为 字节
+func B2Byte(arr []bool) byte {
+	var res byte = 0
+	var v byte = 0
+	for _, b := range arr {
+		res <<= 1
+		if b {
+			v = 1
+		} else {
+			v = 0
+		}
+		res += v
+	}
+	return res
+}
+
+func xor(x, y bool) bool {
+	return x != y
+}
+
+func max(x, y int) int {
+	if x > y {
+		return x
+	}
+	return y
+}
+
+func abs(x int) int {
+	if x > 0 {
+		return x
+	}
+	return -x
+}
+
+func min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
+}
+
+// B2bitArr 转换字节数组为比特序列
+func B2bitArr(src []byte) []bool {
+	n := len(src) * 8
+	res := make([]bool, n)
+
+	for i, b := range src {
+		baseIdx := i * 8
+		res[baseIdx] = b&0x80 > 0
+		res[baseIdx+1] = b&0x40 > 0
+		res[baseIdx+2] = b&0x20 > 0
+		res[baseIdx+3] = b&0x10 > 0
+		res[baseIdx+4] = b&0x08 > 0
+		res[baseIdx+5] = b&0x04 > 0
+		res[baseIdx+6] = b&0x02 > 0
+		res[baseIdx+7] = b&0x01 > 0
+	}
+	return res
+}
+
+// GroupBit 生成一组 10^6 比特的检测序列
+func GroupBit() []bool {
+	return GroupSecBit()
+}
+
+// GroupSecBit 生成一组测试数据 长度为 10^6 比特
+func GroupSecBit() []bool {
+	n := 1000000
+	bits := make([]bool, 0, n)
+	buf := make([]byte, n/8)
+	_, _ = rand2.Read(buf)
+	for _, b := range buf {
+		bits = append(bits, B2bit(b)...)
+	}
+	return bits
+}
+
+// ReadGroup 从文件中读取一组二元序列
+func ReadGroup(filename string) []bool {
+	n := 1000000
+	bits := make([]bool, 0, n)
+	buf, err := ioutil.ReadFile(filename)
+	if err != nil {
+		panic(err)
+	}
+	for _, b := range buf {
+		bits = append(bits, B2bit(b)...)
+	}
+	return bits
+}
+
+// ReadGroupInASCIIFormat
+func ReadGroupInASCIIFormat(filename string) []bool {
+	file, err := os.Open(filename)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+	n := 1000000
+	bits := make([]bool, n)
+	var b int
+	var num_0s, num_1s, bitsRead int
+	r := bufio.NewReader(file)
+	for {
+		line, err := r.ReadBytes('\n')
+		if err != nil {
+			break
+		}
+		rr := strings.NewReader(string(line))
+		for {
+			_, err = fmt.Fscanf(rr, "%1d", &b)
+			if err == nil {
+				if b != 0 {
+					bits[bitsRead] = true
+					num_1s++
+				} else {
+					bits[bitsRead] = false
+					num_0s++
+				}
+				bitsRead++
+				if bitsRead == n {
+					break
+				}
+			} else {
+				break
+			}
+		}
+		if bitsRead == n {
+			break
+		}
+	}
+
+	fmt.Printf("BITSREAD = %d 0s = %d 1s = %d\n", bitsRead, num_0s, num_1s)
+
+	if bitsRead != n {
+		panic("not enough bits readed")
+	}
+	return bits
+}

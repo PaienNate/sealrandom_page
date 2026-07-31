@@ -1,0 +1,50 @@
+{
+  "results_dir": "docs/results",
+  "sources": [
+    {
+      "id": "pcg",
+      "name": "默认 PCG",
+      "type": "pcg",
+      "enabled": true,
+      "algorithm": "PCG",
+      "standard": "通过 TestU01、PractRand 等常见随机性测试",
+      "description": "基于置换同余发生器的高性能随机算法，程序结合系统安全随机种子初始化；以状态推进与输出置换设计，兼顾速度与分布质量，支持极高吞吐随机调用。"
+    },
+    {
+      "id": "gm",
+      "name": "GM 国密",
+      "type": "gm",
+      "enabled": true,
+      "algorithm": "SM3 Hash DRBG",
+      "standard": "GM/T 0105-2021（国密随机数发生器口径）",
+      "description": "符合国内商密行业标准 GM/T 0105-2021 的国密随机方案，采用 gmsm/rand 提供的 SM3 Hash DRBG 随机输出；兼容国密/商密体系，在规范一致性和安全设计方面更突出，但计算与初始化开销相对较高。"
+    },
+    {
+      "id": "nist",
+      "name": "NIST",
+      "type": "nist",
+      "enabled": true,
+      "algorithm": "AES-CTR DRBG",
+      "standard": "NIST SP 800-90A Rev.1（AES-CTR DRBG 口径）",
+      "description": "基于 NIST SP 800-90A Rev.1 的 AES-CTR DRBG 思路，以 AES-256 计数器模式维护内部状态；启动时从操作系统 CSPRNG 取种子，并混入 GM 国密随机源输出作为附加 seed material。"
+    },
+    {
+      "id": "crng",
+      "name": "系统级 CRNG",
+      "type": "crng",
+      "enabled": true,
+      "algorithm": "操作系统 CSPRNG/CRNG 接口",
+      "standard": "Go crypto/rand，底层由操作系统安全随机接口提供",
+      "description": "直接使用操作系统提供的密码学安全随机数接口，随机性由内核或系统安全子系统维护的 CRNG/CSPRNG 提供；安全边界清晰、平台集成度高。"
+    },
+    {
+      "id": "hybrid",
+      "name": "Hybrid 混合",
+      "type": "hybrid",
+      "enabled": true,
+      "algorithm": "对 PCG、GM、NIST、系统级 CRNG 输出做按位异或混合",
+      "standard": "组合模式：混合 PCG、GM 国密、NIST、系统级随机源",
+      "description": "Hybrid 混合模式通过将多个随机源按位异或混合生成输出；只要其中一个来源保持不可预测，最终结果就保持不可预测。代价是吞吐性能最低。"
+    }
+  ]
+}
