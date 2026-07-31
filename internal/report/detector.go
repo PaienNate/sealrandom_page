@@ -11,6 +11,11 @@ import (
 	"randomnessreporter/internal/source"
 )
 
+const (
+	defaultFactorySampleCount   = 1000
+	defaultFactoryBitsPerSample = 1000000
+)
+
 type FactoryDetector struct {
 	SampleCount    int
 	BitsPerSample  int
@@ -22,11 +27,11 @@ type FactoryDetector struct {
 func (d FactoryDetector) Detect(spec config.SourceConfig, src source.DiceSource, runAt time.Time) (RunReport, error) {
 	sampleCount := d.SampleCount
 	if sampleCount <= 0 {
-		sampleCount = 50
+		sampleCount = defaultFactorySampleCount
 	}
 	bitsPerSample := d.BitsPerSample
 	if bitsPerSample <= 0 {
-		bitsPerSample = 1000000
+		bitsPerSample = defaultFactoryBitsPerSample
 	}
 	if bitsPerSample%8 != 0 {
 		return RunReport{}, fmt.Errorf("bits per sample must be divisible by 8")

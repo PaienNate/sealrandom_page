@@ -199,6 +199,9 @@ func buildManifestSource(resultsDir, sourceID string) (ManifestSource, error) {
 		if err := json.Unmarshal(data, &report); err != nil {
 			return ManifestSource{}, fmt.Errorf("decode report %s: %w", absPath, err)
 		}
+		if report.Run.SampleCount != defaultFactorySampleCount {
+			continue
+		}
 		ms.ID = report.Source.ID
 		ms.Name = report.Source.Name
 		ms.Type = report.Source.Type
@@ -224,6 +227,9 @@ func buildManifestSource(resultsDir, sourceID string) (ManifestSource, error) {
 		}
 		ms.Results = append(ms.Results, entry)
 		ms.Latest = entry
+	}
+	if len(ms.Results) == 0 {
+		return ManifestSource{}, fmt.Errorf("no standard report files found for source %s", sourceID)
 	}
 	return ms, nil
 }

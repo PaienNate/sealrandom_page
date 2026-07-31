@@ -353,8 +353,8 @@ test('technical glossary explains alpha and alphaT thresholds', () => {
   assert.match(text, /α=0\.01/);
   assert.match(text, /αT=0\.0001/);
   assert.match(text, /PT/);
-  assert.match(text, /s=50/);
-  assert.match(text, /GM\/T 0005-2021 第6\.1条规定样本数量为 s=1000/);
+  assert.match(text, /样本数量 s=1000/);
+  assert.doesNotMatch(text, /s=50/);
 });
 
 test('metric help text explains how to read every detail metric', () => {

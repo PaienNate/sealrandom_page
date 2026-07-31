@@ -21,6 +21,53 @@ func (s *sequenceSource) Uint64() uint64 {
 	return v
 }
 
+type countingSource struct {
+	value uint64
+}
+
+func (s *countingSource) Uint64() uint64 {
+	s.value++
+	return s.value
+}
+
+func TestFactoryDetectorDefaultsToGmtStandardSampleCount(t *testing.T) {
+	var roundCalls int
+	detector := FactoryDetector{
+		BitsPerSample: 8,
+		RoundFunc: func(data []byte) []*randomness.TestResult {
+			roundCalls++
+			return []*randomness.TestResult{{Name: "A", Q: 0.5, Pass: true}}
+		},
+		ThresholdFunc: func(samples int) int {
+			if samples != 1000 {
+				t.Fatalf("threshold samples = %d, want 1000", samples)
+			}
+			return 980
+		},
+		UniformityFunc: func(qValues []float64) float64 {
+			if len(qValues) != 1000 {
+				t.Fatalf("len(qValues) = %d, want 1000", len(qValues))
+			}
+			return 0.5
+		},
+	}
+
+	report, err := detector.Detect(config.SourceConfig{ID: "pcg-a", Name: "PCG A", Type: "pcg"}, &countingSource{}, time.Now())
+	if err != nil {
+		t.Fatalf("Detect() error = %v", err)
+	}
+
+	if report.Run.SampleCount != 1000 {
+		t.Fatalf("SampleCount = %d, want 1000", report.Run.SampleCount)
+	}
+	if report.Summary.SamplesCollected != 1000 {
+		t.Fatalf("SamplesCollected = %d, want 1000", report.Summary.SamplesCollected)
+	}
+	if roundCalls != 1000 {
+		t.Fatalf("round calls = %d, want 1000", roundCalls)
+	}
+}
+
 func TestFactoryDetectorAggregatesRoundsIntoRunReport(t *testing.T) {
 	detector := FactoryDetector{
 		SampleCount:   3,

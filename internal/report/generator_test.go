@@ -67,7 +67,7 @@ func (stubDetector) Detect(spec config.SourceConfig, src source.DiceSource, runA
 			Mode:          "factory",
 			StartedAt:     runAt.UTC(),
 			CompletedAt:   runAt.UTC(),
-			SampleCount:   50,
+			SampleCount:   1000,
 			BitsPerSample: 1000000,
 		},
 		Summary: RunSummary{
@@ -75,14 +75,14 @@ func (stubDetector) Detect(spec config.SourceConfig, src source.DiceSource, runA
 			TestPassedCount:  1,
 			TestTotalCount:   1,
 			OverallPassRate:  1,
-			SamplesRequired:  48,
-			SamplesCollected: 50,
+			SamplesRequired:  981,
+			SamplesCollected: 1000,
 		},
 		Tests: []TestReport{{
 			Name:              "sample-test",
-			RoundPassCount:    50,
-			RequiredPassCount: 48,
-			RoundCount:        50,
+			RoundPassCount:    1000,
+			RequiredPassCount: 981,
+			RoundCount:        1000,
 			PassRate:          1,
 			UniformityPValue:  0.42,
 			UniformityPass:    true,
@@ -160,6 +160,82 @@ func TestGeneratorRunWritesProofForUnsafeSource(t *testing.T) {
 	}
 	if manifest.Sources[0].Security != "insecure" || manifest.Sources[0].Latest.ProofPath != wantRelProofPath {
 		t.Fatalf("unexpected manifest proof/security metadata: %+v", manifest.Sources[0])
+	}
+}
+
+func TestRebuildManifestIgnoresNonStandardSampleCountReports(t *testing.T) {
+	resultsDir := filepath.Join(t.TempDir(), "results")
+	oldRunAt := time.Date(2026, time.July, 30, 1, 2, 3, 0, time.UTC)
+	newRunAt := time.Date(2026, time.July, 31, 1, 2, 3, 0, time.UTC)
+
+	oldReport := sampleManifestReport("pcg-a", oldRunAt, 50)
+	newReport := sampleManifestReport("pcg-a", newRunAt, 1000)
+	if err := writeReport(resultsDir, oldReport, oldRunAt); err != nil {
+		t.Fatalf("write old report: %v", err)
+	}
+	if err := writeReport(resultsDir, newReport, newRunAt); err != nil {
+		t.Fatalf("write new report: %v", err)
+	}
+
+	if err := RebuildManifest(resultsDir); err != nil {
+		t.Fatalf("RebuildManifest() error = %v", err)
+	}
+
+	manifestData, err := os.ReadFile(filepath.Join(resultsDir, "manifest.json"))
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	var manifest Manifest
+	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		t.Fatalf("unmarshal manifest: %v", err)
+	}
+
+	if len(manifest.Sources) != 1 {
+		t.Fatalf("len(manifest.Sources) = %d, want 1", len(manifest.Sources))
+	}
+	if len(manifest.Sources[0].Results) != 1 {
+		t.Fatalf("len(results) = %d, want 1", len(manifest.Sources[0].Results))
+	}
+	if manifest.Sources[0].Latest.RunID != newReport.Run.RunID {
+		t.Fatalf("latest RunID = %q, want %q", manifest.Sources[0].Latest.RunID, newReport.Run.RunID)
+	}
+}
+
+func sampleManifestReport(sourceID string, runAt time.Time, sampleCount int) RunReport {
+	return RunReport{
+		SchemaVersion: 1,
+		Source: SourceMetadata{
+			ID:   sourceID,
+			Name: "PCG A",
+			Type: "pcg",
+		},
+		Run: RunMetadata{
+			RunID:         sourceID + "-" + runAt.UTC().Format("20060102T150405Z"),
+			Mode:          "factory",
+			StartedAt:     runAt.UTC(),
+			CompletedAt:   runAt.UTC(),
+			SampleCount:   sampleCount,
+			BitsPerSample: 1000000,
+		},
+		Summary: RunSummary{
+			OverallPass:      true,
+			TestPassedCount:  1,
+			TestTotalCount:   1,
+			OverallPassRate:  1,
+			SamplesRequired:  sampleCount,
+			SamplesCollected: sampleCount,
+		},
+		Tests: []TestReport{{
+			Name:              "sample-test",
+			RoundPassCount:    sampleCount,
+			RequiredPassCount: sampleCount,
+			RoundCount:        sampleCount,
+			PassRate:          1,
+			UniformityPValue:  0.42,
+			UniformityPass:    true,
+			OverallPass:       true,
+			Rounds:            []RoundReport{{Index: 1, P: 0.51, Q: 0.49, Pass: true}},
+		}},
 	}
 }
 
