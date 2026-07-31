@@ -8,6 +8,8 @@ import {
   buildSourceDescription,
   buildTechnicalGlossaryItems,
   buildLatestTestBarData,
+  buildPQMapChartData,
+  buildSampleMarginChartData,
   buildInsecurityProofData,
   buildMetricHelpItems,
   buildSplitTimeSeries,
@@ -15,6 +17,7 @@ import {
   buildTestDetails,
   buildTestVerdict,
   buildTimeSeries,
+  buildUniformityPTChartData,
   buildVisualizationPanelData,
   buildVisualizationCanvasConfig,
   decodeVisualizationBits,
@@ -240,6 +243,13 @@ test('index includes insecurity proof panel', () => {
   assert.match(indexHTML, /为什么不安全/);
 });
 
+test('index includes latest multidimensional charts', () => {
+  assert.match(indexHTML, /id="sample-margin-chart"/);
+  assert.match(indexHTML, /id="uniformity-pt-chart"/);
+  assert.match(indexHTML, /id="pq-map-chart"/);
+  assert.match(indexHTML, /最新一轮多维观察/);
+});
+
 test('FAQ translation lives in editable markdown source', () => {
   assert.equal(existsSync(faqMarkdownPath), true);
   for (const heading of [
@@ -265,6 +275,9 @@ test('daily workflow uses committed Linux binary for report generation', () => {
   assert.match(workflowText, /push:/);
   assert.match(workflowText, /bin\/randomness-reporter/);
   assert.doesNotMatch(workflowText, /docs\/results\/\*\*/);
+  assert.doesNotMatch(workflowText, /docs\/assets\/\*\*/);
+  assert.doesNotMatch(workflowText, /docs\/index\.html/);
+  assert.doesNotMatch(workflowText, /docs\/content\/\*\*/);
 });
 
 test('buildPageTabState activates one top-level page tab and page', () => {
@@ -297,6 +310,50 @@ test('buildLatestTestBarData returns current report test pass rates', () => {
   assert.deepEqual(result.labels, ['Poker', 'Runs']);
   assert.deepEqual(result.values, [0.8, 0.7]);
   assert.deepEqual(result.passFlags, [true, false]);
+});
+
+test('latest multidimensional chart data summarizes sample margin, PT and P/Q map', () => {
+  const report = {
+    tests: [
+      {
+        name: '块内频数检测',
+        round_pass_count: 990,
+        required_pass_count: 981,
+        round_count: 1000,
+        uniformity_p_value: 0.007861663033105199,
+        avg_p: 0.49351923801704206,
+        avg_q: 0.49351923801704206,
+      },
+      {
+        name: '单比特频数检测',
+        round_pass_count: 988,
+        required_pass_count: 981,
+        round_count: 1000,
+        uniformity_p_value: 0.751865768610652,
+        avg_p: 0.5097146009126965,
+        avg_q: 0.5073455481459288,
+      },
+    ],
+  };
+
+  assert.deepEqual(buildSampleMarginChartData(report), {
+    labels: ['单比特频数检测', '块内频数检测'],
+    margins: [7, 9],
+    thresholds: [981, 981],
+    passCounts: [988, 990],
+    roundCounts: [1000, 1000],
+  });
+  assert.deepEqual(buildUniformityPTChartData(report), {
+    labels: ['单比特频数检测', '块内频数检测'],
+    values: [0.751865768610652, 0.007861663033105199],
+    threshold: 0.0001,
+  });
+  assert.deepEqual(buildPQMapChartData(report), {
+    points: [
+      { name: '单比特频数检测', avgP: 0.5097146009126965, avgQ: 0.5073455481459288 },
+      { name: '块内频数检测', avgP: 0.49351923801704206, avgQ: 0.49351923801704206 },
+    ],
+  });
 });
 
 test('buildVisualizationPanelData returns latest selected-source image details', () => {
@@ -369,6 +426,17 @@ test('metric help text explains how to read every detail metric', () => {
   assert.match(helpByLabel['均匀性 PT'], /PT>=αT/);
   assert.match(helpByLabel['平均 P/Q'], /长期平均/);
   assert.match(helpByLabel['最新 P/Q'], /最近一个样本/);
+});
+
+test('plain-language glossary and metric help are readable for non-specialists', () => {
+  const glossaryText = buildTechnicalGlossaryItems().map((item) => `${item.title} ${item.body}`).join('\n');
+  const helpText = buildMetricHelpItems().map((item) => `${item.label} ${item.help}`).join('\n');
+  assert.match(glossaryText, /怎么看/);
+  assert.match(glossaryText, /这轮/);
+  assert.match(glossaryText, /s=1000/);
+  assert.doesNotMatch(glossaryText, /s=50/);
+  assert.match(helpText, /先看/);
+  assert.match(helpText, /这轮/);
 });
 
 test('buildInsecurityProofData returns unsafe-source proof path and reason', () => {
@@ -496,8 +564,9 @@ test('buildTestDetails enriches tests with meaning and professional metrics', ()
   assert.equal(result[0].name, 'Poker');
   assert.equal(
     result[0].summary,
-    '扑克检测用来检测长度为m的2^m类子序列的个数是否接近。对于随机的序列，2^m类子序列的个数应该接近。',
+    '把短比特片段当成牌型，观察各种牌型出现得是否均衡。它看的是小模式的丰富度。',
   );
+  assert.match(result[0].significance, /这轮：样本通过 40\/50，比门槛少 8 组；PT=0\.12。/);
   assert.equal(result[0].stats.uniformityPValue, 0.1234);
   assert.equal(result[0].stats.latestP2, 0.65);
   assert.equal(result[0].stats.latestQ2, 0.35);
@@ -517,7 +586,7 @@ test('buildTestDetails uses GM/T 0005-2021 overview wording', () => {
 
   assert.equal(
     result[0].summary,
-    '单比特频数检测是最基本的检测，用来检测一个二元序列中0和1的个数是否相近。随机序列应具有较好的0、1平衡性。',
+    '看 0 和 1 的数量是否大体平衡。一个自然的比特流不会长期偏向某一边。',
   );
   assert.match(result[0].significance, /α=0\.01/);
   assert.match(result[0].significance, /αT=0\.0001/);

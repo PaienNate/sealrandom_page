@@ -1,93 +1,95 @@
 const PERIODS = new Set(['day', 'week', 'month', 'year']);
 
+const STANDARD_SIGNIFICANCE = '怎么看：先看 P_value 是否达到 α=0.01，再看这轮 s=1000 的样本通过率和 PT 是否一起稳。';
+
 const DEFAULT_TEST_METADATA = {
   category: 'GM/T 0005-2021 第5章',
-  summary: '本项随机性检测方法按GM/T 0005-2021第5章规定执行。',
-  significance: '结果判定：将计算得出的P_value结果与显著性水平α进行比较。',
+  summary: '看这项检测对应的比特特征是否自然、平稳。',
+  significance: STANDARD_SIGNIFICANCE,
 };
 
-const SAMPLE_SET_JUDGMENT_NOTE = '本看板按 GM/T 0005-2021 第6.1条使用样本数量 s=1000；按第6.2条使用 α=0.01 统计样本通过率，并按第6.3条使用 αT=0.0001 判断 Q_value 在10个区间上的分布均匀性。';
+const SAMPLE_SET_JUDGMENT_NOTE = '本看板按 GM/T 0005-2021 第6.1条使用样本数量 s=1000；第6.2条用 α=0.01 看样本过线数量，第6.3条用 αT=0.0001 看 Q_value 分布是否铺开。';
 
 const TEST_METADATA = {
   '单比特频数检测': {
     category: '5.1 单比特频数检测方法',
-    summary: '单比特频数检测是最基本的检测，用来检测一个二元序列中0和1的个数是否相近。随机序列应具有较好的0、1平衡性。',
-    significance: '结果判定：如果P_value>=α，则认为待检序列通过单比特频数检测，否则未通过单比特频数检测。',
+    summary: '看 0 和 1 的数量是否大体平衡。一个自然的比特流不会长期偏向某一边。',
+    significance: STANDARD_SIGNIFICANCE,
   },
   '块内频数检测': {
     category: '5.2 块内频数检测方法',
-    summary: '块内频数检测用来检测待检序列的m位子序列中1的个数是否接近m/2。对随机序列来说，其任意长度的m位子序列中1的个数都应该接近m/2。',
-    significance: '结果判定：如果P_value>=α，则认为待检序列通过块内频数检测，否则未通过块内频数检测。',
+    summary: '把序列切成小块，看每块里的 1 是否接近一半。它观察局部区域是否也保持平衡。',
+    significance: STANDARD_SIGNIFICANCE,
   },
   Poker: {
     category: '5.3 扑克检测方法',
-    summary: '扑克检测用来检测长度为m的2^m类子序列的个数是否接近。对于随机的序列，2^m类子序列的个数应该接近。',
-    significance: '结果判定：如果P_value>=α，则认为待检序列通过扑克检测，否则未通过扑克检测。',
+    summary: '把短比特片段当成牌型，观察各种牌型出现得是否均衡。它看的是小模式的丰富度。',
+    significance: STANDARD_SIGNIFICANCE,
   },
   '扑克检测': {
     category: '5.3 扑克检测方法',
-    summary: '扑克检测用来检测长度为m的2^m类子序列的个数是否接近。对于随机的序列，2^m类子序列的个数应该接近。',
-    significance: '结果判定：如果P_value>=α，则认为待检序列通过扑克检测，否则未通过扑克检测。',
+    summary: '把短比特片段当成牌型，观察各种牌型出现得是否均衡。它看的是小模式的丰富度。',
+    significance: STANDARD_SIGNIFICANCE,
   },
   '重叠子序列检测方法': {
     category: '5.4 重叠子序列检测方法',
-    summary: '对任意的正整数m，长度为m的二元序列有2^m类。重叠子序列检测将长度为n的待检序列划分成n个可叠加的m位子序列。对随机二元序列来说，由于其具有均匀性，故m位可叠加子序列的每一类模式出现的概率应该接近。',
-    significance: '结果判定：两个结果P_value1和P_value2分别与α进行比较，并分别判定对应重叠子序列检测项目是否通过。',
+    summary: '用滑动窗口看连续片段的组合是否自然出现。它比扑克检测更关注相邻模式的衔接。',
+    significance: STANDARD_SIGNIFICANCE,
   },
   '游程总数检测': {
     category: '5.5 游程总数检测方法',
-    summary: '游程是指序列中由连续的“0”或者“1”组成的子序列，并且该子序列的前导与后继元素都与其本身的元素不同。游程总数检测主要检测待检序列中游程的总数是否服从随机性要求。',
-    significance: '结果判定：如果P_value>=α，则认为待检序列通过游程总数检测，否则未通过游程总数检测。',
+    summary: '看连续 0 或连续 1 的段落数量是否自然。它观察比特流的切换节奏。',
+    significance: STANDARD_SIGNIFICANCE,
   },
   '游程分布检测': {
     category: '5.6 游程分布检测方法',
-    summary: '游程分布检测用于检测序列中相同长度游程分布是否均匀，随机的序列中，相同长度的游程数目应该接近一致，且游程长度每增加一比特，游程数目应接近减半。',
-    significance: '结果判定：如果P_value>=α，则认为待检序列通过游程分布检测，否则未通过游程分布检测。',
+    summary: '看短游程、长游程的比例是否自然。它关注连续段长度的层次是否顺滑。',
+    significance: STANDARD_SIGNIFICANCE,
   },
   '块内最大游程检测': {
     category: '5.7 块内最大游程检测方法',
-    summary: '块内最大游程检测方法分别对块内最大“1”游程和块内最大“0”游程两种模式进行检测。将待检序列划分成N个长度为m的子序列，此时n=N*m，统计各个子序列中的最长“1”游程长度和最长“0”游程长度，根据各个子序列中最大“1”游程、最大“0”游程的分布来评价待检序列的随机性。',
-    significance: '结果判定：如果P_value>=α，则认为待检序列通过块内最大游程检测，否则未通过块内最大游程检测。',
+    summary: '把序列分块，观察每块里最长的连续 0 或 1 是否落在自然范围。它看局部极值。',
+    significance: STANDARD_SIGNIFICANCE,
   },
   '二元推导检测(k=7)': {
     category: '5.8 二元推导检测方法',
-    summary: '二元推导检测的目的是判定第k次二元推导序列中0和1的个数是否接近一致。对于长度为n的二元初始序列，依次将初始序列中两个相邻比特做异或操作，即可得到该序列的一次二元推导序列，长度为n-1。依次执行上述操作k次，即可得到该初始序列的k次二元推导序列，长度为n-k。对于一个随机的序列，无论进行多少次推导，其0、1的个数都应该接近一致。',
-    significance: '结果判定：如果P_value>=α，则认为待检序列通过二元推导检测，否则未通过二元推导检测。',
+    summary: '把相邻比特做异或，连续推导 7 次后再看 0/1 平衡。它观察隐藏在相邻关系里的结构。',
+    significance: STANDARD_SIGNIFICANCE,
   },
   '自相关检测(d=16)': {
     category: '5.9 自相关检测方法',
-    summary: '自相关检测用来检测待检序列与将其左移（逻辑左移）d位后所得新序列的关联程度。一个随机序列应该和将其左移任意位所得的新序列都是独立的，故其关联程度也应该很低，即初始序列与将其左移d位后所得新序列进行异或操作形成的新序列中，0、1的个数应该接近一致。',
-    significance: '结果判定：如果P_value>=α，则认为待检序列通过自相关检测，否则未通过自相关检测。',
+    summary: '把序列和错开 16 位后的自己比较。它看前后位置之间是否保持低关联。',
+    significance: STANDARD_SIGNIFICANCE,
   },
   '矩阵秩检测': {
     category: '5.10 矩阵秩检测方法',
-    summary: '矩阵秩检测用来检测待检序列中给定长度的子序列之间的线性独立性。由待检序列构造矩阵，然后检测矩阵的行或列之间的线性独立性，矩阵秩的偏移程度可以给出关于线性独立性的量的认识，从而影响对二元序列随机性好坏的评价。',
-    significance: '结果判定：如果P_value>=α，则认为待检序列通过矩阵秩检测，否则未通过矩阵秩检测。',
+    summary: '把比特排成矩阵，看行列之间是否有足够独立性。它观察线性结构是否丰富。',
+    significance: STANDARD_SIGNIFICANCE,
   },
   '累加和检测': {
     category: '5.11 累加和检测方法',
-    summary: '累加和检测方法分别对前向累加和、后向累加和两种模式进行检测。前向累加和检测从待检序列第1比特开始，逐比特向后计算，后向累加和检测从待检序列最后1比特开始，逐比特向前计算，通过判断待检序列的各个子序列中最大的偏移（与0之间），也就是最大累加和与一个随机序列应具有的最大偏移相比较，以判断待检序列的随机性。',
-    significance: '结果判定：如果P_value>=α，则认为待检序列通过累加和检测，否则未通过累加和检测。',
+    summary: '把 1 和 0 当成上下波动，观察累计曲线是否自然起伏。它看整体偏移是否平稳。',
+    significance: STANDARD_SIGNIFICANCE,
   },
   '近似熵检测(m=5)': {
     category: '5.12 近似熵检测方法',
-    summary: '近似熵检测通过比较m位可重叠子序列模式的频数和m+1位可重叠子序列模式的频数来评价其随机性。计算m位可重叠子序列模式和m+1位可重叠子序列模式之间的频数差异，差异值较小则表明待检序列具有规则性和连续性；差异值较大则表明待检序列具有不规则性和不连续性。对任意一个m来说，随机序列的近似熵应该近似等于ln2。',
-    significance: '结果判定：如果P_value>=α，则认为待检序列通过近似熵检测，否则未通过近似熵检测。',
+    summary: '比较 5 位模式和 6 位模式的丰富度。它看序列在增加一个比特后是否仍然保持变化。',
+    significance: STANDARD_SIGNIFICANCE,
   },
   '线型复杂度检测(m=500)': {
     category: '5.13 线性复杂度检测方法',
-    summary: '线性复杂度检测用于检测各等长子序列的线性复杂度分布是否符合随机性的要求。将待检序列划分成N个长度为m的子序列，此时n=N*m，然后利用Berlekamp-Massey算法计算每个子序列的线性复杂度Li，根据Li的分布情况判断待检二元序列的随机性。',
-    significance: '结果判定：如果P_value>=α，则认为待检序列通过线性复杂度检测，否则未通过线性复杂度检测。',
+    summary: '看每段序列需要多复杂的线性规则才能描述。复杂度分布自然，说明线性结构不单薄。',
+    significance: STANDARD_SIGNIFICANCE,
   },
   'Maurer通用统计检测方法': {
     category: '5.14 Maurer通用统计检测方法',
-    summary: 'Maurer通用统计检测用于检测待检序列能否被无损压缩。因为随机序列是不能被显著压缩，因此如果待检序列能被显著地压缩，则认为该序列不随机。',
-    significance: '结果判定：如果P_value>=α，则认为待检序列通过Maurer通用统计检测，否则未通过Maurer通用统计检测。',
+    summary: '看序列里新模式出现的节奏。模式越丰富，统计上越接近自然随机流。',
+    significance: STANDARD_SIGNIFICANCE,
   },
   '离散傅里叶检测': {
     category: '5.15 离散傅立叶检测方法',
-    summary: '离散傅立叶检测使用频谱的方法来检测序列的随机性。对待检序列进行傅立叶变换后可以得到尖峰高度，根据随机性的假设，这个尖峰高度不能超过某个门限值（与序列长度n有关），否则将其归入不正常的范围；如果不正常的尖峰个数超过了允许值，即可认为待检序列是不随机的。',
-    significance: '结果判定：如果P_value>=α，则认为待检序列通过离散傅立叶检测，否则未通过离散傅立叶检测。',
+    summary: '把比特流换成频谱来看周期痕迹。它观察是否有异常突出的重复节奏。',
+    significance: STANDARD_SIGNIFICANCE,
   },
 };
 
@@ -279,35 +281,35 @@ export function buildMetricHelpItems() {
   return [
     {
       label: '样本通过',
-      help: '这一批样本中有多少个单样本满足 P_value>=α。只说明单样本过线数量，不代表分布均匀性也过线。',
+      help: '先看这轮有多少组样本过线。过线表示该样本的 P_value>=α；还要接着看 PT。',
     },
     {
       label: '门槛要求',
-      help: '按第6.2条公式算出的最低通过数量；样本通过数达到或超过这个门槛，才算样本通过率合格。',
+      help: '国标按 s=1000 算出的最低通过数量。实际通过数达到或超过这个门槛，样本数量这关就稳。',
     },
     {
       label: '样本通过率',
-      help: '样本通过数除以样本总数，越接近 100% 越好，但仍需同时看均匀性 PT。',
+      help: '实际通过数除以 1000 组样本。越接近 100% 越好；这轮还要同时看均匀性 PT。',
     },
     {
       label: '均匀性 PT',
-      help: '第6.3条对 Q_value 分布做均匀性检验；PT>=αT 才通过，极小值说明 Q_value 扎堆。',
+      help: '看这一项的 Q_value 有没有自然铺开。PT>=αT 表示分布这关过线，越靠近门槛越该多看几轮。',
     },
     {
       label: '平均 P/Q',
-      help: '本批样本 P_value 与 Q_value 的长期平均。接近某个极端值时，要结合 PT 看是否分布扎堆。',
+      help: '这轮 1000 组样本的长期平均。P 偏单样本，Q 偏集合分布，读它能看整体位置。',
     },
     {
       label: '最新 P/Q',
-      help: '最近一个样本的 P_value 与 Q_value，只代表单个样本状态，不应替代整批判断。',
+      help: '最近一个样本的 P_value 与 Q_value。先看整批，再用它感受当前波动。',
     },
     {
       label: '平均 P2/Q2',
-      help: '有第二统计量的项目才显示，读法同平均 P/Q，用来观察另一侧或补充口径。',
+      help: '有第二统计量的项目才显示。读法同平均 P/Q，用来观察这轮的另一侧结构。',
     },
     {
       label: '最新 P2/Q2',
-      help: '有第二统计量的项目才显示，表示最近一个样本的补充统计口径。',
+      help: '有第二统计量的项目才显示。表示最近一个样本的补充观察角度。',
     },
   ];
 }
@@ -396,6 +398,47 @@ export function buildLatestTestBarData(report) {
     labels: tests.map((item) => item.name),
     values: tests.map((item) => item.pass_rate),
     passFlags: tests.map((item) => item.overall_pass),
+  };
+}
+
+function latestTestsInStandardOrder(report) {
+  return [...(report?.tests ?? [])].sort((a, b) => {
+    const sectionDiff = testSectionOrder(a.name) - testSectionOrder(b.name);
+    if (sectionDiff !== 0) {
+      return sectionDiff;
+    }
+    return a.name.localeCompare(b.name, 'zh-Hans-CN');
+  });
+}
+
+export function buildSampleMarginChartData(report) {
+  const rows = latestTestsInStandardOrder(report).filter((item) => (
+    item.round_pass_count != null
+    && item.required_pass_count != null
+    && item.round_count != null
+  ));
+  return {
+    labels: rows.map((item) => item.name),
+    margins: rows.map((item) => item.round_pass_count - item.required_pass_count),
+    thresholds: rows.map((item) => item.required_pass_count),
+    passCounts: rows.map((item) => item.round_pass_count),
+    roundCounts: rows.map((item) => item.round_count),
+  };
+}
+
+export function buildUniformityPTChartData(report) {
+  const rows = latestTestsInStandardOrder(report).filter((item) => item.uniformity_p_value != null);
+  return {
+    labels: rows.map((item) => item.name),
+    values: rows.map((item) => item.uniformity_p_value),
+    threshold: 0.0001,
+  };
+}
+
+export function buildPQMapChartData(report) {
+  const rows = latestTestsInStandardOrder(report).filter((item) => item.avg_p != null && item.avg_q != null);
+  return {
+    points: rows.map((item) => ({ name: item.name, avgP: item.avg_p, avgQ: item.avg_q })),
   };
 }
 
@@ -560,7 +603,7 @@ export function buildTestDetails(report) {
       name: item.name,
       category: metadata.category,
       summary: metadata.summary,
-      significance: `${metadata.significance} ${SAMPLE_SET_JUDGMENT_NOTE}`,
+      significance: `${metadata.significance} ${buildRunSignal(item)} ${SAMPLE_SET_JUDGMENT_NOTE}`,
       overallPass: item.overall_pass,
       stats: {
         passRate: nullableMetric(item.pass_rate),
@@ -579,6 +622,20 @@ export function buildTestDetails(report) {
       },
     };
   });
+}
+
+function buildRunSignal(item) {
+  const passCount = item.round_pass_count;
+  const required = item.required_pass_count;
+  const roundCount = item.round_count;
+  const pt = item.uniformity_p_value;
+  if (passCount == null || required == null || roundCount == null) {
+    return '这轮：先看通过率，再看 PT。';
+  }
+  const margin = passCount - required;
+  const marginText = margin >= 0 ? `比门槛多 ${margin} 组` : `比门槛少 ${Math.abs(margin)} 组`;
+  const ptText = pt == null ? 'PT 暂无数据' : `PT=${formatNumber(pt)}`;
+  return `这轮：样本通过 ${passCount}/${roundCount}，${marginText}；${ptText}。`;
 }
 
 export function buildTestVerdict(item) {
@@ -978,15 +1035,37 @@ function renderTrendChart(state, reportsBySource) {
 
 function renderLatestChart(state, reportsBySource) {
   const report = latestReport(reportsBySource, state.selectedSourceID);
-  const el = document.querySelector('#latest-chart');
-  const chart = echarts.getInstanceByDom(el) ?? echarts.init(el);
 
   if (!report) {
-    chart.clear();
+    clearLatestCharts();
     return;
   }
 
-  const barData = buildLatestTestBarData(report);
+  renderSampleMarginChart(report);
+  renderUniformityPTChart(report);
+  renderPQMapChart(report);
+}
+
+function chartFor(selector) {
+  const el = document.querySelector(selector);
+  if (!el) {
+    return null;
+  }
+  return echarts.getInstanceByDom(el) ?? echarts.init(el);
+}
+
+function clearLatestCharts() {
+  for (const selector of ['#sample-margin-chart', '#uniformity-pt-chart', '#pq-map-chart']) {
+    chartFor(selector)?.clear();
+  }
+}
+
+function renderSampleMarginChart(report) {
+  const chart = chartFor('#sample-margin-chart');
+  if (!chart) {
+    return;
+  }
+  const data = buildSampleMarginChartData(report);
   chart.setOption({
     backgroundColor: '#ffffff',
     tooltip: {
@@ -994,48 +1073,132 @@ function renderLatestChart(state, reportsBySource) {
       axisPointer: { type: 'shadow' },
       formatter: (params) => {
         const item = params[0];
-        const metric = report.tests[item.dataIndex];
-        const lines = [
+        const index = item.dataIndex;
+        return [
           `${escapeHTML(item.name)}`,
-          `通过率: ${formatPercent(item.value)}`,
-          `均匀性PT: ${formatNumber(metric?.uniformity_p_value)}`,
-          `最新P/Q: ${formatNumber(metric?.latest_p)} / ${formatNumber(metric?.latest_q)}`,
-        ];
-        if (metric?.latest_p2 != null || metric?.latest_q2 != null) {
-          lines.push(`最新P2/Q2: ${formatNumber(metric?.latest_p2)} / ${formatNumber(metric?.latest_q2)}`);
-        }
-        lines.push(barData.passFlags[item.dataIndex] ? '结论: 通过' : '结论: 未通过');
-        return lines.join('<br>');
+          `比国标门槛多通过 ${escapeHTML(item.value)} 组样本`,
+          `实际通过 ${escapeHTML(data.passCounts[index])}/${escapeHTML(data.roundCounts[index])}`,
+          `门槛 ${escapeHTML(data.thresholds[index])}/${escapeHTML(data.roundCounts[index])}`,
+        ].join('<br>');
       },
     },
-    grid: { left: 198, right: 48, top: 58, bottom: 40, containLabel: false },
+    grid: { left: 118, right: 18, top: 12, bottom: 30, containLabel: true },
     xAxis: {
       type: 'value',
-      min: 0,
-      max: 1,
-      axisLabel: { color: '#111827', formatter: (value) => formatPercent(value) },
+      axisLabel: { color: '#111827', formatter: (value) => `${value}` },
       splitLine: { lineStyle: { color: '#d1d5db', type: 'dashed' } },
     },
     yAxis: {
       type: 'category',
-      data: barData.labels,
-      axisLabel: { color: '#111827', width: 180, overflow: 'truncate' },
+      data: data.labels,
+      axisLabel: { color: '#111827', width: 110, overflow: 'truncate' },
       axisLine: { lineStyle: { color: '#111827' } },
     },
     series: [{
       type: 'bar',
-      data: barData.values.map((value, index) => ({
-        value,
-        itemStyle: { color: barData.passFlags[index] ? '#065f46' : '#991b1b' },
-      })),
-      barMaxWidth: 20,
+      data: data.margins.map((value) => ({ value, itemStyle: { color: value >= 0 ? '#065f46' : '#991b1b' } })),
+      barMaxWidth: 14,
     }],
-    title: {
-      text: `${report.source.name} 最新单项结果`,
-      left: 'center',
-      top: 8,
-      textStyle: { color: '#111827', fontSize: 14, fontWeight: 700 },
+  });
+}
+
+function renderUniformityPTChart(report) {
+  const chart = chartFor('#uniformity-pt-chart');
+  if (!chart) {
+    return;
+  }
+  const data = buildUniformityPTChartData(report);
+  const safeValues = data.values.map((value) => Math.max(value, 1e-12));
+  chart.setOption({
+    backgroundColor: '#ffffff',
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: (params) => {
+        const item = params[0];
+        const raw = data.values[item.dataIndex];
+        const label = raw >= data.threshold ? 'PT 高于国标门槛' : 'PT 低于国标门槛';
+        return `${escapeHTML(item.name)}<br>${escapeHTML(label)}<br>PT: ${escapeHTML(formatNumber(raw))}`;
+      },
     },
+    grid: { left: 118, right: 18, top: 12, bottom: 30, containLabel: true },
+    xAxis: {
+      type: 'log',
+      min: 1e-12,
+      max: 1,
+      axisLabel: { color: '#111827', formatter: (value) => formatNumber(value) },
+      splitLine: { lineStyle: { color: '#d1d5db', type: 'dashed' } },
+    },
+    yAxis: {
+      type: 'category',
+      data: data.labels,
+      axisLabel: { color: '#111827', width: 110, overflow: 'truncate' },
+      axisLine: { lineStyle: { color: '#111827' } },
+    },
+    series: [{
+      type: 'bar',
+      data: safeValues.map((value, index) => ({
+        value,
+        itemStyle: { color: data.values[index] >= data.threshold ? '#003b73' : '#991b1b' },
+      })),
+      barMaxWidth: 14,
+      markLine: {
+        symbol: 'none',
+        lineStyle: { color: '#991b1b', width: 2 },
+        label: { formatter: 'alphaT', color: '#991b1b' },
+        data: [{ xAxis: data.threshold }],
+      },
+    }],
+  });
+}
+
+function renderPQMapChart(report) {
+  const chart = chartFor('#pq-map-chart');
+  if (!chart) {
+    return;
+  }
+  const data = buildPQMapChartData(report);
+  chart.setOption({
+    backgroundColor: '#ffffff',
+    tooltip: {
+      trigger: 'item',
+      formatter: (item) => {
+        const point = data.points[item.dataIndex];
+        return [
+          `${escapeHTML(point.name)}`,
+          `平均 P: ${escapeHTML(formatNumber(point.avgP))}`,
+          `平均 Q: ${escapeHTML(formatNumber(point.avgQ))}`,
+        ].join('<br>');
+      },
+    },
+    grid: { left: 42, right: 22, top: 18, bottom: 40, containLabel: true },
+    xAxis: {
+      type: 'value',
+      name: '平均 P',
+      min: 0,
+      max: 1,
+      axisLabel: { color: '#111827', formatter: (value) => formatNumber(value) },
+      splitLine: { lineStyle: { color: '#d1d5db', type: 'dashed' } },
+    },
+    yAxis: {
+      type: 'value',
+      name: '平均 Q',
+      min: 0,
+      max: 1,
+      axisLabel: { color: '#111827', formatter: (value) => formatNumber(value) },
+      splitLine: { lineStyle: { color: '#d1d5db', type: 'dashed' } },
+    },
+    series: [{
+      type: 'scatter',
+      symbolSize: 9,
+      data: data.points.map((point) => [point.avgP, point.avgQ]),
+      itemStyle: { color: '#065f46' },
+      markArea: {
+        silent: true,
+        itemStyle: { color: 'rgba(0, 59, 115, 0.06)' },
+        data: [[{ xAxis: 0.25, yAxis: 0.25 }, { xAxis: 0.75, yAxis: 0.75 }]],
+      },
+    }],
   });
 }
 
@@ -1043,27 +1206,27 @@ export function buildTechnicalGlossaryItems() {
   return [
     {
       title: 'P-value (P)',
-      body: '第5章单个样本检测得到的显著性概率，用于样本通过率判定。若该样本的P_value>=α，且α=0.01，则该样本在该检测项目上通过。',
+      body: '它做什么：给单个样本一个随机性读数。怎么看：P_value>=α，且 α=0.01，表示这个样本在这项检测里过线。',
     },
     {
       title: 'Q-value (Q)',
-      body: '第5章为每个样本计算的分布均匀性输入值。样本集内的Q_value应该在[0,1]上近似均匀；Q值长期扎堆在高位或低位都不是好现象。',
+      body: '它做什么：把这轮多个样本的表现拿来观察分布。怎么看：Q_value 自然铺开，说明这项结果更平稳。',
     },
     {
       title: '均匀性 PT',
-      body: '第6.3条对一组Q_value做10个子区间的χ²分布均匀性检验得到PT。若PT>=αT，且αT=0.0001，则样本集通过分布均匀性判定；PT很小表示Q值分布扎堆。',
+      body: '它做什么：把 Q_value 的铺开程度变成一个判断数。怎么看：PT>=αT，且 αT=0.0001，表示这轮分布过线。',
     },
     {
       title: '样本通过率',
-      body: '第6.2条统计 P_value>=α 的样本数量。当前每日批次使用样本数量 s=1000，门槛按 GM/T 0005-2021 第6.2条公式计算。',
+      body: '它做什么：按样本数量 s=1000 统计这轮有多少样本满足 P_value>=α。怎么看：实际通过数达到门槛，样本数量这关过线。',
     },
     {
       title: '最终项目结论',
-      body: '同一检测项目必须同时满足样本通过率判定和Q_value分布均匀性判定。1000/1000只说明单样本P_value全部过线；如果PT<αT，仍然应标记为分布未通过。',
+      body: '它做什么：把样本通过率和 PT 合在一起看。怎么看：两关都过，说明这项国标检测给出稳定信号。',
     },
     {
       title: 'P2 / Q2',
-      body: '少数检测会给出第二组统计口径，用于描述另一侧结构或补充统计量。判定时应分别看对应的P_value和Q_value。',
+      body: '它做什么：给少数项目提供第二个观察角度。怎么看：读法同 P/Q，用来补充另一侧结构。',
     },
   ];
 }
@@ -1134,7 +1297,7 @@ function renderTestDetails(state, reportsBySource) {
 }
 
 function resizeCharts() {
-  for (const selector of ['#trend-chart', '#latest-chart']) {
+  for (const selector of ['#trend-chart', '#sample-margin-chart', '#uniformity-pt-chart', '#pq-map-chart']) {
     const el = document.querySelector(selector);
     const chart = el ? echarts.getInstanceByDom(el) : null;
     chart?.resize();

@@ -70,8 +70,30 @@
           <section class="chart-panel wide">
             <div id="trend-chart" class="chart"></div>
           </section>
-          <section class="chart-panel">
-            <div id="latest-chart" class="chart"></div>
+          <section class="chart-panel latest-multichart-panel">
+            <div class="panel-header latest-multichart-header">
+              <div>
+                <p class="eyebrow">Latest Run</p>
+                <h2>最新一轮多维观察</h2>
+              </div>
+            </div>
+            <div class="latest-chart-grid">
+              <section class="latest-chart-card">
+                <h3>样本通过余量</h3>
+                <p>看每个项目比国标门槛多通过多少组样本。</p>
+                <div id="sample-margin-chart" class="chart compact-chart"></div>
+              </section>
+              <section class="latest-chart-card">
+                <h3>均匀性 PT</h3>
+                <p>看 Q_value 是否自然铺开，红线是国标门槛。</p>
+                <div id="uniformity-pt-chart" class="chart compact-chart"></div>
+              </section>
+              <section class="latest-chart-card">
+                <h3>P/Q 坐标</h3>
+                <p>P 看单样本表现，Q 看样本集合分布。</p>
+                <div id="pq-map-chart" class="chart compact-chart"></div>
+              </section>
+            </div>
           </section>
         </section>
 

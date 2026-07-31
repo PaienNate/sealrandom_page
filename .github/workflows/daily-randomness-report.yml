@@ -15,9 +15,6 @@ on:
       - 'internal/**'
       - 'go.mod'
       - 'go.sum'
-      - 'docs/assets/**'
-      - 'docs/index.html'
-      - 'docs/content/**'
 
 permissions:
   contents: write

@@ -509,9 +509,47 @@ h2 {
   padding: 12px;
 }
 
+.latest-multichart-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.latest-multichart-header {
+  margin-bottom: 0;
+}
+
+.latest-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.latest-chart-card {
+  border: 1px solid var(--line);
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.latest-chart-card h3 {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.latest-chart-card p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .chart {
   width: 100%;
   height: 440px;
+}
+
+.compact-chart {
+  height: 320px;
 }
 
 .wide .chart {
@@ -746,6 +784,7 @@ h2 {
 
   .summary,
   .chart-grid,
+  .latest-chart-grid,
   .proof-grid {
     grid-template-columns: 1fr;
   }
@@ -764,6 +803,10 @@ h2 {
   .chart,
   .wide .chart {
     height: 360px;
+  }
+
+  .compact-chart {
+    height: 300px;
   }
 
   .test-detail-list {
