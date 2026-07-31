@@ -22,7 +22,8 @@ func TestLoadReadsMultipleSources(t *testing.T) {
 				"enabled": true,
 				"algorithm": "PCG",
 				"standard": "internal",
-				"description": "main source"
+				"description": "main source",
+				"security": "secure"
 			},
 			{
 				"id": "pcg-backup",
@@ -31,7 +32,9 @@ func TestLoadReadsMultipleSources(t *testing.T) {
 				"enabled": true,
 				"algorithm": "PCG",
 				"standard": "internal",
-				"description": "backup source"
+				"description": "backup source",
+				"security": "insecure",
+				"unsafe_reason": "state can be recovered from outputs"
 			}
 		]
 	}`
@@ -57,6 +60,12 @@ func TestLoadReadsMultipleSources(t *testing.T) {
 	if !cfg.Sources[0].Enabled || !cfg.Sources[1].Enabled {
 		t.Fatalf("expected sources to be enabled: %+v", cfg.Sources)
 	}
+	if cfg.Sources[0].Security != "secure" {
+		t.Fatalf("Security = %q, want secure", cfg.Sources[0].Security)
+	}
+	if cfg.Sources[1].Security != "insecure" || cfg.Sources[1].UnsafeReason == "" {
+		t.Fatalf("expected unsafe metadata: %+v", cfg.Sources[1])
+	}
 }
 
 func TestDefaultConfigListsAllRandomModes(t *testing.T) {
@@ -76,9 +85,19 @@ func TestDefaultConfigListsAllRandomModes(t *testing.T) {
 		}
 	}
 
-	want := []string{"pcg", "gm", "nist", "crng", "hybrid"}
+	want := []string{"pcg", "gm", "nist", "crng", "hybrid", "mt19937", "lcg"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("default source types = %#v, want %#v", got, want)
+	}
+
+	unsafeByType := map[string]bool{}
+	for _, source := range cfg.Sources {
+		unsafeByType[source.Type] = source.Security == "insecure" && source.UnsafeReason != ""
+	}
+	for _, kind := range []string{"mt19937", "lcg"} {
+		if !unsafeByType[kind] {
+			t.Fatalf("source type %s is not marked insecure with a reason", kind)
+		}
 	}
 }
 

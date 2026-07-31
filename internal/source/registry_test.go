@@ -16,7 +16,7 @@ func TestAdaptSourceWrapsRandSource(t *testing.T) {
 
 func TestRegistryBuildsConfiguredRandomModes(t *testing.T) {
 	registry := NewRegistry()
-	for _, kind := range []string{"pcg", "gm", "nist", "crng", "hybrid"} {
+	for _, kind := range []string{"pcg", "gm", "nist", "crng", "hybrid", "mt19937", "lcg"} {
 		t.Run(kind, func(t *testing.T) {
 			src, err := registry.Build(config.SourceConfig{ID: kind, Name: kind, Type: kind, Enabled: true})
 			if err != nil {

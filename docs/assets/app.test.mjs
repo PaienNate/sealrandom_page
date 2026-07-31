@@ -7,6 +7,7 @@ import {
   buildPageTabState,
   buildSourceDescription,
   buildLatestTestBarData,
+  buildInsecurityProofData,
   buildSplitTimeSeries,
   buildSummaryCards,
   buildTestDetails,
@@ -19,7 +20,10 @@ import {
   formatDisplayNumber,
   formatDisplayPercent,
   manifestToReportsBySource,
+  predictLCGNext,
+  predictMT19937Next,
   renderMarkdown,
+  renderSourceDescription,
 } from './app.mjs';
 
 const indexHTML = readFileSync(join(import.meta.dirname, '..', 'index.html'), 'utf8');
@@ -62,6 +66,45 @@ const reportsBySource = {
     },
   ],
 };
+
+function generateMT19937Fixture(seed, count) {
+  const n = 624;
+  const m = 397;
+  const state = new Uint32Array(n);
+  state[0] = seed >>> 0;
+  for (let i = 1; i < n; i += 1) {
+    const prev = state[i - 1];
+    state[i] = (Math.imul(1812433253, prev ^ (prev >>> 30)) + i) >>> 0;
+  }
+
+  let index = n;
+  const twist = () => {
+    for (let i = 0; i < n; i += 1) {
+      const x = (state[i] & 0x80000000) | (state[(i + 1) % n] & 0x7fffffff);
+      let xA = x >>> 1;
+      if (x & 1) {
+        xA ^= 0x9908b0df;
+      }
+      state[i] = (state[(i + m) % n] ^ xA) >>> 0;
+    }
+    index = 0;
+  };
+
+  const next = () => {
+    if (index >= n) {
+      twist();
+    }
+    let y = state[index];
+    index += 1;
+    y ^= y >>> 11;
+    y ^= (y << 7) & 0x9d2c5680;
+    y ^= (y << 15) & 0xefc60000;
+    y ^= y >>> 18;
+    return y >>> 0;
+  };
+
+  return Array.from({ length: count }, next);
+}
 
 test('buildTimeSeries aggregates overall metric by month', () => {
   const result = buildTimeSeries({
@@ -139,7 +182,25 @@ test('buildSourceDescription returns selected source metadata', () => {
     algorithm: 'SM3 Hash DRBG',
     standard: 'GM/T 0105-2021',
     description: '符合国内商密行业标准。',
+    security: 'secure',
+    unsafeReason: '--',
   });
+});
+
+test('renderSourceDescription marks unsafe algorithms in red', () => {
+  const html = renderSourceDescription({
+    name: '不安全 MT19937',
+    type: 'mt19937',
+    algorithm: 'MT19937 Mersenne Twister',
+    standard: '非密码学 PRNG',
+    description: '状态可恢复。',
+    security: 'insecure',
+    unsafeReason: '624 个连续输出可恢复状态。',
+  });
+
+  assert.match(html, /<span class="unsafe-badge">不安全<\/span>/);
+  assert.match(html, /<dd class="unsafe-algorithm">MT19937 Mersenne Twister<\/dd>/);
+  assert.match(html, /624 个连续输出可恢复状态。/);
 });
 
 test('index uses top-level report and FAQ page tabs', () => {
@@ -168,6 +229,11 @@ test('index includes random-source bitmap visualization block', () => {
   assert.equal(panelIndex > 0 && panelIndex < sidebarEnd, true);
   assert.equal(panelIndex > reportStart && panelIndex < indexHTML.indexOf('</main>'), false);
   assert.equal(descriptionIndex > 0 && descriptionIndex < openButtonIndex, true);
+});
+
+test('index includes insecurity proof panel', () => {
+  assert.match(indexHTML, /id="insecurity-panel"/);
+  assert.match(indexHTML, /为什么不安全/);
 });
 
 test('FAQ translation lives in editable markdown source', () => {
@@ -255,6 +321,33 @@ test('buildVisualizationCanvasConfig uses 64px thumbnail and full-size modal', (
   assert.deepEqual(buildVisualizationCanvasConfig({ width: 512, height: 512 }, 'modal'), { cssWidth: 512, cssHeight: 512 });
 });
 
+test('buildInsecurityProofData returns unsafe-source proof path and reason', () => {
+  const result = buildInsecurityProofData({
+    source: {
+      name: '不安全 LCG',
+      security: 'insecure',
+      unsafe_reason: '线性递推可预测。',
+    },
+    proof_path: 'results/proofs/lcg/2026/latest.json',
+  });
+
+  assert.deepEqual(result, {
+    sourceName: '不安全 LCG',
+    reason: '线性递推可预测。',
+    dataPath: 'results/proofs/lcg/2026/latest.json',
+  });
+  assert.equal(buildInsecurityProofData({ source: { security: 'secure' } }), null);
+});
+
+test('predictLCGNext predicts the next 32-bit output', () => {
+  assert.equal(predictLCGNext({ multiplier: 1664525, increment: 1013904223, outputs: [123] }), 1218640798);
+});
+
+test('predictMT19937Next recovers state from 624 outputs', () => {
+  const outputs = generateMT19937Fixture(5489, 625);
+  assert.equal(predictMT19937Next(outputs.slice(0, 624)), outputs[624]);
+});
+
 test('findSourcesToLoad only returns sources missing from cache', () => {
   const result = findSourcesToLoad({ alpha: [] }, ['alpha', 'beta', 'gamma']);
   assert.deepEqual(result, ['beta', 'gamma']);
@@ -269,10 +362,12 @@ test('manifestToReportsBySource maps manifest summaries into chart-friendly repo
       algorithm: 'SM3 Hash DRBG',
       standard: 'GM/T 0105-2021',
       description: 'GM source',
+      security: 'secure',
       results: [
         {
           timestamp: '2026-07-01T00:00:00Z',
           visualization_path: 'visualizations/alpha/2026/sample.json',
+          proof_path: 'proofs/alpha/2026/sample.json',
           overall_pass: true,
           overall_pass_rate: 0.9,
           test_metrics: [
@@ -298,9 +393,10 @@ test('manifestToReportsBySource maps manifest summaries into chart-friendly repo
   assert.deepEqual(result, {
     alpha: [
       {
-        source: { id: 'alpha', name: 'Alpha', type: 'gm', algorithm: 'SM3 Hash DRBG', standard: 'GM/T 0105-2021', description: 'GM source' },
+        source: { id: 'alpha', name: 'Alpha', type: 'gm', algorithm: 'SM3 Hash DRBG', standard: 'GM/T 0105-2021', description: 'GM source', security: 'secure', unsafe_reason: '' },
         run: { completed_at: '2026-07-01T00:00:00Z' },
         visualization_path: 'results/visualizations/alpha/2026/sample.json',
+        proof_path: 'results/proofs/alpha/2026/sample.json',
         summary: { overall_pass: true, overall_pass_rate: 0.9 },
         tests: [{
           name: 'Poker',

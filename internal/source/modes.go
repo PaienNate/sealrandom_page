@@ -43,6 +43,20 @@ func registerRandomModeFactories(r *Registry) {
 	r.Register("hybrid", func(spec config.SourceConfig) (DiceSource, error) {
 		return newHybridDiceSource()
 	})
+	r.Register("mt19937", func(spec config.SourceConfig) (DiceSource, error) {
+		seed1, _, err := generateRandSeed()
+		if err != nil {
+			return nil, err
+		}
+		return newMT19937Source(uint32(seed1)), nil
+	})
+	r.Register("lcg", func(spec config.SourceConfig) (DiceSource, error) {
+		seed1, _, err := generateRandSeed()
+		if err != nil {
+			return nil, err
+		}
+		return newLCGSource(uint32(seed1)), nil
+	})
 }
 
 func newReaderDiceSource(reader io.Reader) DiceSource {

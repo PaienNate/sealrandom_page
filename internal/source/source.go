@@ -7,6 +7,10 @@ type DiceSource interface {
 	Uint64() uint64
 }
 
+type InsecurityProofProvider interface {
+	InsecurityProof() (any, error)
+}
+
 func FillRandomnessBuffer(src DiceSource, buf []byte) {
 	fillRandomnessBuffer(src, buf)
 }

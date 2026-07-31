@@ -197,8 +197,27 @@ h2 {
   background: var(--panel-2);
 }
 
+.source-description.unsafe-source {
+  border-color: var(--fail);
+  background: #fff7f7;
+}
+
 .source-description strong {
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.unsafe-badge {
+  border: 1px solid var(--fail);
+  color: var(--fail);
+  background: #ffffff;
+  font-family: Consolas, "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 5px;
 }
 
 .source-description dl {
@@ -225,10 +244,26 @@ h2 {
   line-height: 1.45;
 }
 
+.source-description dd.unsafe-algorithm {
+  color: var(--fail);
+  font-weight: 800;
+}
+
 .source-description p {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.55;
+}
+
+.source-description .unsafe-reason,
+.insecurity-proof .unsafe-reason {
+  color: var(--fail);
+}
+
+.source-description .unsafe-reason strong,
+.insecurity-proof .unsafe-reason strong {
+  display: inline;
+  margin-right: 8px;
 }
 
 .summary {
@@ -249,6 +284,52 @@ h2 {
   font-size: 24px;
   line-height: 1.15;
   word-break: break-word;
+}
+
+.insecurity-panel {
+  border-color: var(--fail);
+  background: #fffafa;
+}
+
+.insecurity-proof {
+  display: grid;
+  gap: 12px;
+}
+
+.proof-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.proof-grid div {
+  border: 1px solid var(--line);
+  padding: 10px;
+  background: #ffffff;
+  display: grid;
+  gap: 6px;
+}
+
+.proof-grid span,
+.proof-method {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.proof-grid strong {
+  color: var(--fail);
+  font-family: Consolas, "JetBrains Mono", monospace;
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.proof-result {
+  font-weight: 800;
+  color: var(--fail);
+}
+
+.proof-result.passed {
+  color: var(--fail);
 }
 
 .toolbar {
@@ -658,7 +739,8 @@ h2 {
   }
 
   .summary,
-  .chart-grid {
+  .chart-grid,
+  .proof-grid {
     grid-template-columns: 1fr;
   }
 }

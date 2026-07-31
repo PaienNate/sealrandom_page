@@ -13,13 +13,15 @@ type AppConfig struct {
 }
 
 type SourceConfig struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Type        string `json:"type"`
-	Enabled     bool   `json:"enabled"`
-	Algorithm   string `json:"algorithm"`
-	Standard    string `json:"standard"`
-	Description string `json:"description"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Type         string `json:"type"`
+	Enabled      bool   `json:"enabled"`
+	Algorithm    string `json:"algorithm"`
+	Standard     string `json:"standard"`
+	Description  string `json:"description"`
+	Security     string `json:"security"`
+	UnsafeReason string `json:"unsafe_reason"`
 }
 
 func Load(path string) (AppConfig, error) {

@@ -10,7 +10,7 @@
 ## 目录
 
 - `cmd/randomness-reporter`: CLI 入口
-- `internal/source`: `DiceSource`、适配器、源注册表、PCG 实现
+- `internal/source`: `DiceSource`、适配器、源注册表、安全源和演示用不安全源
 - `internal/report`: 检测聚合、报告写入、manifest 生成
 - `config/sources.json`: 数据源配置
 - `docs/`: GitHub Pages 静态站点和结果目录
@@ -70,12 +70,12 @@ go run ./cmd/randomness-reporter -config ./config/sources.json -output ./docs/re
 
 1. 每日执行一次
 2. 跑 `go test ./...`
-3. 生成最新检测结果
+3. 执行仓库内的 Linux binary `bin/randomness-reporter` 生成最新检测结果
 4. 提交 `docs/results` 的变更
 
 ## 配置多个数据源
 
-在 `config/sources.json` 里增加条目即可。当前内置类型只有 `pcg`，但注册表已经留好了扩展口。
+在 `config/sources.json` 里增加条目即可。当前内置类型包括 `pcg`、`gm`、`nist`、`crng`、`hybrid`，以及演示用不安全源 `mt19937`、`lcg`。
 
 ```json
 {
@@ -89,6 +89,14 @@ go run ./cmd/randomness-reporter -config ./config/sources.json -output ./docs/re
 }
 ```
 
+演示用不安全源会额外生成：
+
+```text
+docs/results/proofs/<source-id>/<year>/<timestamp>.json
+```
+
+页面会读取 proof sidecar 并在浏览器里预测下一项输出，用来说明这些算法不是密码学安全随机源。
+
 ## 本地预览静态页
 
 静态页依赖同源 `fetch` 读取 JSON，不适合直接双击 `index.html`。
@@ -96,7 +104,7 @@ go run ./cmd/randomness-reporter -config ./config/sources.json -output ./docs/re
 可以在项目根目录启动一个最简单的静态服务器，例如：
 
 ```bash
-python -m http.server 4173 -d docs
+python -m http.server 4174 -d docs
 ```
 
-然后打开 `http://localhost:4173`。
+然后打开 `http://localhost:4174`。

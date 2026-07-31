@@ -3,12 +3,14 @@ package report
 import "time"
 
 type SourceMetadata struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Type        string `json:"type"`
-	Algorithm   string `json:"algorithm,omitempty"`
-	Standard    string `json:"standard,omitempty"`
-	Description string `json:"description,omitempty"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Type         string `json:"type"`
+	Algorithm    string `json:"algorithm,omitempty"`
+	Standard     string `json:"standard,omitempty"`
+	Description  string `json:"description,omitempty"`
+	Security     string `json:"security,omitempty"`
+	UnsafeReason string `json:"unsafe_reason,omitempty"`
 }
 
 type RunMetadata struct {
@@ -57,6 +59,7 @@ type RunReport struct {
 	Run               RunMetadata    `json:"run"`
 	Summary           RunSummary     `json:"summary"`
 	VisualizationPath string         `json:"visualization_path,omitempty"`
+	ProofPath         string         `json:"proof_path,omitempty"`
 	Tests             []TestReport   `json:"tests"`
 }
 
@@ -83,6 +86,7 @@ type ManifestEntry struct {
 	Timestamp         time.Time            `json:"timestamp"`
 	Path              string               `json:"path"`
 	VisualizationPath string               `json:"visualization_path,omitempty"`
+	ProofPath         string               `json:"proof_path,omitempty"`
 	OverallPass       bool                 `json:"overall_pass"`
 	OverallPassRate   float64              `json:"overall_pass_rate"`
 	TestPassedCount   int                  `json:"test_passed_count"`
@@ -91,14 +95,16 @@ type ManifestEntry struct {
 }
 
 type ManifestSource struct {
-	ID          string          `json:"id"`
-	Name        string          `json:"name"`
-	Type        string          `json:"type"`
-	Algorithm   string          `json:"algorithm,omitempty"`
-	Standard    string          `json:"standard,omitempty"`
-	Description string          `json:"description,omitempty"`
-	Latest      ManifestEntry   `json:"latest"`
-	Results     []ManifestEntry `json:"results"`
+	ID           string          `json:"id"`
+	Name         string          `json:"name"`
+	Type         string          `json:"type"`
+	Algorithm    string          `json:"algorithm,omitempty"`
+	Standard     string          `json:"standard,omitempty"`
+	Description  string          `json:"description,omitempty"`
+	Security     string          `json:"security,omitempty"`
+	UnsafeReason string          `json:"unsafe_reason,omitempty"`
+	Latest       ManifestEntry   `json:"latest"`
+	Results      []ManifestEntry `json:"results"`
 }
 
 type Manifest struct {

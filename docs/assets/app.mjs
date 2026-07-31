@@ -392,6 +392,113 @@ export function buildVisualizationCanvasConfig(data, mode) {
   return { cssWidth: data.width, cssHeight: data.height };
 }
 
+export function buildInsecurityProofData(report) {
+  if (report?.source?.security !== 'insecure' || !report?.proof_path) {
+    return null;
+  }
+  return {
+    sourceName: report.source?.name ?? '--',
+    reason: report.source?.unsafe_reason ?? '--',
+    dataPath: report.proof_path,
+  };
+}
+
+function undoRightShiftXor(value, shift) {
+  let result = value >>> 0;
+  for (let i = 0; i < 5; i += 1) {
+    result = (value ^ (result >>> shift)) >>> 0;
+  }
+  return result >>> 0;
+}
+
+function undoLeftShiftXorAnd(value, shift, mask) {
+  let result = value >>> 0;
+  for (let i = 0; i < 5; i += 1) {
+    result = (value ^ ((result << shift) & mask)) >>> 0;
+  }
+  return result >>> 0;
+}
+
+function temperMT19937(value) {
+  let y = value >>> 0;
+  y ^= y >>> 11;
+  y ^= (y << 7) & 0x9d2c5680;
+  y ^= (y << 15) & 0xefc60000;
+  y ^= y >>> 18;
+  return y >>> 0;
+}
+
+function untemperMT19937(value) {
+  let y = value >>> 0;
+  y = undoRightShiftXor(y, 18);
+  y = undoLeftShiftXorAnd(y, 15, 0xefc60000);
+  y = undoLeftShiftXorAnd(y, 7, 0x9d2c5680);
+  y = undoRightShiftXor(y, 11);
+  return y >>> 0;
+}
+
+function twistMT19937State(state) {
+  const n = 624;
+  const m = 397;
+  const twisted = new Uint32Array(n);
+  for (let i = 0; i < n; i += 1) {
+    const x = (state[i] & 0x80000000) | (state[(i + 1) % n] & 0x7fffffff);
+    let xA = x >>> 1;
+    if (x & 1) {
+      xA ^= 0x9908b0df;
+    }
+    twisted[i] = (state[(i + m) % n] ^ xA) >>> 0;
+  }
+  return twisted;
+}
+
+export function predictMT19937Next(outputs) {
+  if (!Array.isArray(outputs) || outputs.length < 624) {
+    throw new Error('MT19937 proof requires 624 observed outputs');
+  }
+  const recovered = new Uint32Array(outputs.slice(0, 624).map((value) => untemperMT19937(Number(value))));
+  return temperMT19937(twistMT19937State(recovered)[0]);
+}
+
+export function predictLCGNext(proof) {
+  const outputs = proof?.outputs ?? [];
+  if (!outputs.length) {
+    throw new Error('LCG proof requires at least one observed output');
+  }
+  const wordBits = BigInt(proof.word_bits ?? 32);
+  const modulus = proof.modulus ? BigInt(proof.modulus) : (1n << wordBits);
+  const multiplier = BigInt(proof.multiplier >>> 0);
+  const increment = BigInt(proof.increment >>> 0);
+  const current = BigInt(outputs[outputs.length - 1] >>> 0);
+  return Number((multiplier * current + increment) % modulus);
+}
+
+function buildProofResult(payload) {
+  if (payload?.kind === 'mt19937-state-recovery-v1') {
+    const predicted = predictMT19937Next(payload.outputs ?? []);
+    return {
+      title: 'MT19937 状态恢复',
+      method: '页面使用 624 个连续 32-bit 输出反 temper，恢复内部状态并预测下一项。',
+      observed: `${payload.outputs?.length ?? 0} 个连续输出`,
+      predicted,
+      expected: payload.expected_next,
+      passed: predicted === payload.expected_next,
+    };
+  }
+  if (payload?.kind === 'lcg-state-prediction-v1') {
+    const predicted = predictLCGNext(payload);
+    return {
+      title: 'LCG 状态预测',
+      method: '页面用公开线性递推参数和当前输出直接计算下一状态。',
+      observed: `${payload.outputs?.length ?? 0} 个连续输出`,
+      predicted,
+      expected: payload.expected_next,
+      passed: predicted === payload.expected_next,
+    };
+  }
+  throw new Error(`unsupported proof kind: ${payload?.kind ?? 'missing'}`);
+}
+
 export function buildTestDetails(report) {
   const tests = [...(report?.tests ?? [])].sort((a, b) => {
     const sectionDiff = testSectionOrder(a.name) - testSectionOrder(b.name);
@@ -443,9 +550,12 @@ export function manifestToReportsBySource(manifestSources) {
         algorithm: sourceItem.algorithm,
         standard: sourceItem.standard,
         description: sourceItem.description,
+        security: sourceItem.security ?? 'secure',
+        unsafe_reason: sourceItem.unsafe_reason ?? '',
       },
       run: { completed_at: entry.timestamp },
       visualization_path: entry.visualization_path ? `results/${entry.visualization_path}` : null,
+      proof_path: entry.proof_path ? `results/${entry.proof_path}` : null,
       summary: {
         overall_pass: entry.overall_pass,
         overall_pass_rate: entry.overall_pass_rate,
@@ -518,19 +628,23 @@ export function buildSourceDescription(report) {
     algorithm: source.algorithm ?? '--',
     standard: source.standard ?? '--',
     description: source.description ?? '--',
+    security: source.security ?? 'secure',
+    unsafeReason: source.unsafe_reason ?? '--',
   };
 }
 
-function renderSourceDescription(item) {
+export function renderSourceDescription(item) {
+  const unsafe = item.security === 'insecure';
   return `
-    <div class="source-description">
-      <strong>${escapeHTML(item.name)}</strong>
+    <div class="source-description ${unsafe ? 'unsafe-source' : ''}">
+      <strong>${escapeHTML(item.name)}${unsafe ? '<span class="unsafe-badge">不安全</span>' : ''}</strong>
       <dl>
         <div><dt>TYPE</dt><dd>${escapeHTML(item.type)}</dd></div>
-        <div><dt>ALGORITHM</dt><dd>${escapeHTML(item.algorithm)}</dd></div>
+        <div><dt>ALGORITHM</dt><dd class="${unsafe ? 'unsafe-algorithm' : ''}">${escapeHTML(item.algorithm)}</dd></div>
         <div><dt>STANDARD</dt><dd>${escapeHTML(item.standard)}</dd></div>
       </dl>
       <p>${escapeHTML(item.description)}</p>
+      ${unsafe ? `<p class="unsafe-reason"><strong>为什么不安全</strong>${escapeHTML(item.unsafeReason)}</p>` : ''}
     </div>
   `;
 }
@@ -685,6 +799,54 @@ async function renderVisualization(state, reportsBySource) {
   } catch (error) {
     if (requestID === visualizationRequestID) {
       frameEl.innerHTML = `<p class="visualization-empty">随机源位图加载失败: ${escapeHTML(error.message)}</p>`;
+    }
+  }
+}
+
+let insecurityProofRequestID = 0;
+
+async function renderInsecurityProof(state, reportsBySource) {
+  const requestID = ++insecurityProofRequestID;
+  const panel = document.querySelector('#insecurity-panel');
+  const target = document.querySelector('#insecurity-proof');
+  if (!panel || !target) {
+    return;
+  }
+
+  const report = latestReport(reportsBySource, state.selectedSourceID);
+  const data = buildInsecurityProofData(report);
+  if (!data) {
+    panel.hidden = true;
+    target.innerHTML = '';
+    return;
+  }
+
+  panel.hidden = false;
+  target.innerHTML = `
+    <p class="unsafe-reason"><strong>${escapeHTML(data.sourceName)}</strong>${escapeHTML(data.reason)}</p>
+    <p class="visualization-empty">逆向证明加载中...</p>
+  `;
+
+  try {
+    const payload = await fetchJSON(data.dataPath);
+    if (requestID !== insecurityProofRequestID) {
+      return;
+    }
+    const result = buildProofResult(payload);
+    target.innerHTML = `
+      <p class="unsafe-reason"><strong>${escapeHTML(data.sourceName)}</strong>${escapeHTML(data.reason)}</p>
+      <div class="proof-grid">
+        <div><span>证明方式</span><strong>${escapeHTML(result.title)}</strong></div>
+        <div><span>观测输出</span><strong>${escapeHTML(result.observed)}</strong></div>
+        <div><span>页面预测</span><strong>${escapeHTML(result.predicted)}</strong></div>
+        <div><span>真实下一项</span><strong>${escapeHTML(result.expected)}</strong></div>
+      </div>
+      <p class="proof-result ${result.passed ? 'passed' : 'failed'}">${result.passed ? '预测成功：该输出流不是密码学安全随机。' : '预测失败：proof 数据与页面算法不一致。'}</p>
+      <p class="proof-method">${escapeHTML(result.method)}</p>
+    `;
+  } catch (error) {
+    if (requestID === insecurityProofRequestID) {
+      target.innerHTML = `<p class="visualization-empty">逆向证明加载失败: ${escapeHTML(error.message)}</p>`;
     }
   }
 }
@@ -960,6 +1122,7 @@ function renderApp(state, manifestSources, reportsBySource) {
   renderSummary(state, manifestSources, reportsBySource);
   renderControls(state, reportsBySource);
   renderVisualization(state, reportsBySource);
+  renderInsecurityProof(state, reportsBySource);
   renderTrendChart(state, reportsBySource);
   renderLatestChart(state, reportsBySource);
   renderTechnicalGlossary();

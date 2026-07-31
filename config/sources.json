@@ -45,6 +45,28 @@
       "algorithm": "对 PCG、GM、NIST、系统级 CRNG 输出做按位异或混合",
       "standard": "组合模式：混合 PCG、GM 国密、NIST、系统级随机源",
       "description": "Hybrid 混合模式通过将多个随机源按位异或混合生成输出；只要其中一个来源保持不可预测，最终结果就保持不可预测。代价是吞吐性能最低。"
+    },
+    {
+      "id": "mt19937-insecure",
+      "name": "不安全 MT19937",
+      "type": "mt19937",
+      "enabled": true,
+      "algorithm": "MT19937 Mersenne Twister（Python random 同类算法）",
+      "standard": "非密码学 PRNG；不适用于密钥、令牌、抽奖等安全场景",
+      "description": "梅森旋转算法具有很好的统计分布和很长周期，但它的内部状态可由连续输出恢复。随机初始 seed 只能隐藏初始状态，不能阻止足够输出后的预测。",
+      "security": "insecure",
+      "unsafe_reason": "观察到 624 个连续 32-bit 输出后，可以恢复 MT19937 的内部状态并预测后续输出。"
+    },
+    {
+      "id": "lcg-insecure",
+      "name": "不安全 LCG",
+      "type": "lcg",
+      "enabled": true,
+      "algorithm": "LCG 线性同余发生器",
+      "standard": "非密码学 PRNG；线性递推结构不适用于安全随机场景",
+      "description": "LCG 只按固定线性公式推进状态。即使 seed 随机，只要算法参数已知，当前输出就暴露当前状态，下一项可以直接计算。",
+      "security": "insecure",
+      "unsafe_reason": "输出满足 state[n+1] = (a * state[n] + c) mod 2^32，观测当前状态即可预测下一状态。"
     }
   ]
 }

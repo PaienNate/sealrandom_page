@@ -25,18 +25,42 @@ func (s *stubRunSource) Uint64() uint64 {
 	return s.value
 }
 
+type proofBuilder struct{}
+
+func (proofBuilder) Build(spec config.SourceConfig) (source.DiceSource, error) {
+	return &stubProofSource{value: 3}, nil
+}
+
+type stubProofSource struct {
+	value uint64
+}
+
+func (s *stubProofSource) Uint64() uint64 {
+	return s.value
+}
+
+func (s *stubProofSource) InsecurityProof() (any, error) {
+	return map[string]any{
+		"kind":          "lcg-state-prediction-v1",
+		"outputs":       []uint32{1, 2, 3, 4},
+		"expected_next": uint32(5),
+	}, nil
+}
+
 type stubDetector struct{}
 
 func (stubDetector) Detect(spec config.SourceConfig, src source.DiceSource, runAt time.Time) (RunReport, error) {
 	return RunReport{
 		SchemaVersion: 1,
 		Source: SourceMetadata{
-			ID:          spec.ID,
-			Name:        spec.Name,
-			Type:        spec.Type,
-			Algorithm:   spec.Algorithm,
-			Standard:    spec.Standard,
-			Description: spec.Description,
+			ID:           spec.ID,
+			Name:         spec.Name,
+			Type:         spec.Type,
+			Algorithm:    spec.Algorithm,
+			Standard:     spec.Standard,
+			Description:  spec.Description,
+			Security:     spec.Security,
+			UnsafeReason: spec.UnsafeReason,
 		},
 		Run: RunMetadata{
 			RunID:         spec.ID + "-" + runAt.UTC().Format("20060102T150405Z"),
@@ -66,6 +90,77 @@ func (stubDetector) Detect(spec config.SourceConfig, src source.DiceSource, runA
 			Rounds:            []RoundReport{{Index: 1, P: 0.51, Q: 0.49, P2: 0.61, Q2: 0.39, Pass: true}},
 		}},
 	}, nil
+}
+
+func TestGeneratorRunWritesProofForUnsafeSource(t *testing.T) {
+	resultsDir := filepath.Join(t.TempDir(), "results")
+	runAt := time.Date(2026, time.July, 31, 1, 2, 3, 456000000, time.UTC)
+
+	g := Generator{
+		Builder:  proofBuilder{},
+		Detector: stubDetector{},
+		Clock: func() time.Time {
+			return runAt
+		},
+	}
+
+	cfg := config.AppConfig{
+		ResultsDir: resultsDir,
+		Sources: []config.SourceConfig{{
+			ID:           "lcg-insecure",
+			Name:         "LCG",
+			Type:         "lcg",
+			Enabled:      true,
+			Algorithm:    "LCG",
+			Standard:     "non-cryptographic",
+			Description:  "linear",
+			Security:     "insecure",
+			UnsafeReason: "current output predicts the next output",
+		}},
+	}
+
+	if _, err := g.Run(cfg); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	wantRelProofPath := "proofs/lcg-insecure/2026/2026-07-31T01-02-03.456000000Z.json"
+	proofPath := filepath.Join(resultsDir, filepath.FromSlash(wantRelProofPath))
+	proofData, err := os.ReadFile(proofPath)
+	if err != nil {
+		t.Fatalf("read proof %s: %v", proofPath, err)
+	}
+	var proof map[string]any
+	if err := json.Unmarshal(proofData, &proof); err != nil {
+		t.Fatalf("unmarshal proof: %v", err)
+	}
+	if proof["kind"] != "lcg-state-prediction-v1" {
+		t.Fatalf("proof kind = %v, want lcg-state-prediction-v1", proof["kind"])
+	}
+
+	reportPath := filepath.Join(resultsDir, "sources", "lcg-insecure", "2026", "2026-07-31T01-02-03.456000000Z.json")
+	reportData, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("read report: %v", err)
+	}
+	var report RunReport
+	if err := json.Unmarshal(reportData, &report); err != nil {
+		t.Fatalf("unmarshal report: %v", err)
+	}
+	if report.ProofPath != wantRelProofPath || report.Source.Security != "insecure" || report.Source.UnsafeReason == "" {
+		t.Fatalf("unexpected report proof/security metadata: %+v", report)
+	}
+
+	manifestData, err := os.ReadFile(filepath.Join(resultsDir, "manifest.json"))
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	var manifest Manifest
+	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		t.Fatalf("unmarshal manifest: %v", err)
+	}
+	if manifest.Sources[0].Security != "insecure" || manifest.Sources[0].Latest.ProofPath != wantRelProofPath {
+		t.Fatalf("unexpected manifest proof/security metadata: %+v", manifest.Sources[0])
+	}
 }
 
 type flakyBuilder struct{}

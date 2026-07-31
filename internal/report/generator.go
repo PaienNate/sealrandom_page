@@ -69,6 +69,13 @@ func (g Generator) Run(cfg config.AppConfig) (RunResult, error) {
 		}
 		report.VisualizationPath = visualizationPath
 
+		proofPath, err := writeInsecurityProof(cfg.ResultsDir, report.Source.ID, runAt, src)
+		if err != nil {
+			failures = append(failures, SourceFailure{SourceID: spec.ID, Stage: "proof", Message: err.Error()})
+			continue
+		}
+		report.ProofPath = proofPath
+
 		if err := writeReport(cfg.ResultsDir, report, runAt); err != nil {
 			failures = append(failures, SourceFailure{SourceID: spec.ID, Stage: "write", Message: err.Error()})
 			continue
@@ -198,11 +205,14 @@ func buildManifestSource(resultsDir, sourceID string) (ManifestSource, error) {
 		ms.Algorithm = report.Source.Algorithm
 		ms.Standard = report.Source.Standard
 		ms.Description = report.Source.Description
+		ms.Security = report.Source.Security
+		ms.UnsafeReason = report.Source.UnsafeReason
 		entry := ManifestEntry{
 			RunID:             report.Run.RunID,
 			Timestamp:         report.Run.CompletedAt,
 			Path:              filepath.ToSlash(relativeResultPath(resultsDir, absPath)),
 			VisualizationPath: report.VisualizationPath,
+			ProofPath:         report.ProofPath,
 			OverallPass:       report.Summary.OverallPass,
 			OverallPassRate:   report.Summary.OverallPassRate,
 			TestPassedCount:   report.Summary.TestPassedCount,
