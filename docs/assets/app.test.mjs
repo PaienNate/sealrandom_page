@@ -6,11 +6,14 @@ import { join } from 'node:path';
 import {
   buildPageTabState,
   buildSourceDescription,
+  buildTechnicalGlossaryItems,
   buildLatestTestBarData,
   buildInsecurityProofData,
+  buildMetricHelpItems,
   buildSplitTimeSeries,
   buildSummaryCards,
   buildTestDetails,
+  buildTestVerdict,
   buildTimeSeries,
   buildVisualizationPanelData,
   buildVisualizationCanvasConfig,
@@ -153,6 +156,7 @@ test('buildSplitTimeSeries returns per-test series for one selected source', () 
 test('display formatters use two decimals', () => {
   assert.equal(formatDisplayPercent(0.98765), '98.77%');
   assert.equal(formatDisplayNumber(0.123456), '0.12');
+  assert.equal(formatDisplayNumber(1.7610581453503994e-41), '1.76e-41');
 });
 
 test('buildSummaryCards excludes latest-all-pass card', () => {
@@ -324,6 +328,49 @@ test('buildVisualizationCanvasConfig uses 64px thumbnail and full-size modal', (
   assert.deepEqual(buildVisualizationCanvasConfig({ width: 512, height: 512 }, 'modal'), { cssWidth: 512, cssHeight: 512 });
 });
 
+test('buildTestVerdict separates sample-rate and uniformity failures', () => {
+  assert.deepEqual(buildTestVerdict({ overallPass: true }), { label: '通过', className: 'pass' });
+  assert.deepEqual(buildTestVerdict({
+    overallPass: false,
+    stats: {
+      roundPassCount: 50,
+      requiredPassCount: 48,
+      uniformityPValue: 1.7610581453503994e-41,
+    },
+  }), { label: '分布未通过', className: 'fail' });
+  assert.deepEqual(buildTestVerdict({
+    overallPass: false,
+    stats: {
+      roundPassCount: 47,
+      requiredPassCount: 48,
+      uniformityPValue: 0.5,
+    },
+  }), { label: '样本未通过', className: 'fail' });
+});
+
+test('technical glossary explains alpha and alphaT thresholds', () => {
+  const text = buildTechnicalGlossaryItems().map((item) => `${item.title} ${item.body}`).join('\n');
+  assert.match(text, /α=0\.01/);
+  assert.match(text, /αT=0\.0001/);
+  assert.match(text, /PT/);
+  assert.match(text, /s=50/);
+  assert.match(text, /GM\/T 0005-2021 第6\.1条规定样本数量为 s=1000/);
+});
+
+test('metric help text explains how to read every detail metric', () => {
+  const helpByLabel = Object.fromEntries(buildMetricHelpItems().map((item) => [item.label, item.help]));
+  for (const label of ['样本通过', '门槛要求', '样本通过率', '均匀性 PT', '平均 P/Q', '最新 P/Q', '平均 P2/Q2', '最新 P2/Q2']) {
+    assert.equal(typeof helpByLabel[label], 'string');
+    assert.equal(helpByLabel[label].length > 10, true);
+  }
+  assert.match(helpByLabel['样本通过'], /P_value>=α/);
+  assert.match(helpByLabel['门槛要求'], /达到或超过/);
+  assert.match(helpByLabel['样本通过率'], /越接近 100% 越好/);
+  assert.match(helpByLabel['均匀性 PT'], /PT>=αT/);
+  assert.match(helpByLabel['平均 P/Q'], /长期平均/);
+  assert.match(helpByLabel['最新 P/Q'], /最近一个样本/);
+});
+
 test('buildInsecurityProofData returns unsafe-source proof path and reason', () => {
   const result = buildInsecurityProofData({
     source: {
@@ -472,6 +519,8 @@ test('buildTestDetails uses GM/T 0005-2021 overview wording', () => {
     result[0].summary,
     '单比特频数检测是最基本的检测，用来检测一个二元序列中0和1的个数是否相近。随机序列应具有较好的0、1平衡性。',
   );
+  assert.match(result[0].significance, /α=0\.01/);
+  assert.match(result[0].significance, /αT=0\.0001/);
 });
 
 test('buildTestDetails sorts tests by GM/T 0005-2021 section order', () => {

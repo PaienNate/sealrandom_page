@@ -6,6 +6,8 @@ const DEFAULT_TEST_METADATA = {
   significance: '结果判定：将计算得出的P_value结果与显著性水平α进行比较。',
 };
 
+const SAMPLE_SET_JUDGMENT_NOTE = '本看板按 GM/T 0005-2021 第6.2条使用 α=0.01 统计样本通过率，并按第6.3条使用 αT=0.0001 判断 Q_value 在10个区间上的分布均匀性。当前每日批次使用 s=50 以控制流水线耗时；GM/T 0005-2021 第6.1条规定样本数量为 s=1000。';
+
 const TEST_METADATA = {
   '单比特频数检测': {
     category: '5.1 单比特频数检测方法',
@@ -161,6 +163,9 @@ export function formatDisplayNumber(value) {
   if (value == null || Number.isNaN(value)) {
     return '--';
   }
+  if (value !== 0 && Math.abs(value) < 0.005) {
+    return Number(value).toExponential(2);
+  }
   return Number(value).toFixed(2);
 }
 
@@ -260,13 +265,54 @@ export function renderMarkdown(markdown) {
 }
 
 function metricCell(label, value) {
+  const help = METRIC_HELP_BY_LABEL.get(label) ?? '';
   return `
     <div class="metric-cell">
       <span class="metric-label">${escapeHTML(label)}</span>
       <strong class="metric-value">${escapeHTML(value)}</strong>
+      ${help ? `<span class="metric-help">${escapeHTML(help)}</span>` : ''}
     </div>
   `;
 }
+
+export function buildMetricHelpItems() {
+  return [
+    {
+      label: '样本通过',
+      help: '这一批样本中有多少个单样本满足 P_value>=α。只说明单样本过线数量，不代表分布均匀性也过线。',
+    },
+    {
+      label: '门槛要求',
+      help: '按第6.2条公式算出的最低通过数量；样本通过数达到或超过这个门槛，才算样本通过率合格。',
+    },
+    {
+      label: '样本通过率',
+      help: '样本通过数除以样本总数，越接近 100% 越好，但仍需同时看均匀性 PT。',
+    },
+    {
+      label: '均匀性 PT',
+      help: '第6.3条对 Q_value 分布做均匀性检验；PT>=αT 才通过，极小值说明 Q_value 扎堆。',
+    },
+    {
+      label: '平均 P/Q',
+      help: '本批样本 P_value 与 Q_value 的长期平均。接近某个极端值时，要结合 PT 看是否分布扎堆。',
+    },
+    {
+      label: '最新 P/Q',
+      help: '最近一个样本的 P_value 与 Q_value，只代表单个样本状态，不应替代整批判断。',
+    },
+    {
+      label: '平均 P2/Q2',
+      help: '有第二统计量的项目才显示，读法同平均 P/Q，用来观察另一侧或补充口径。',
+    },
+    {
+      label: '最新 P2/Q2',
+      help: '有第二统计量的项目才显示，表示最近一个样本的补充统计口径。',
+    },
+  ];
+}
+
+const METRIC_HELP_BY_LABEL = new Map(buildMetricHelpItems().map((item) => [item.label, item.help]));
 
 export function buildTimeSeries({ reportsBySource, sourceOrder, period, metric }) {
   if (!PERIODS.has(period)) {
@@ -514,7 +560,7 @@ export function buildTestDetails(report) {
       name: item.name,
       category: metadata.category,
       summary: metadata.summary,
-      significance: metadata.significance,
+      significance: `${metadata.significance} ${SAMPLE_SET_JUDGMENT_NOTE}`,
       overallPass: item.overall_pass,
       stats: {
         passRate: nullableMetric(item.pass_rate),
@@ -533,6 +579,20 @@ export function buildTestDetails(report) {
       },
     };
   });
+}
+
+export function buildTestVerdict(item) {
+  if (item?.overallPass) {
+    return { label: '通过', className: 'pass' };
+  }
+  const stats = item?.stats ?? {};
+  if (stats.roundPassCount != null && stats.requiredPassCount != null && stats.roundPassCount < stats.requiredPassCount) {
+    return { label: '样本未通过', className: 'fail' };
+  }
+  if (stats.uniformityPValue != null && stats.uniformityPValue < 0.0001) {
+    return { label: '分布未通过', className: 'fail' };
+  }
+  return { label: '未通过', className: 'fail' };
 }
 
 export function findSourcesToLoad(reportCache, sourceIDs) {
@@ -938,7 +998,7 @@ function renderLatestChart(state, reportsBySource) {
         const lines = [
           `${escapeHTML(item.name)}`,
           `通过率: ${formatPercent(item.value)}`,
-          `均匀性P: ${formatNumber(metric?.uniformity_p_value)}`,
+          `均匀性PT: ${formatNumber(metric?.uniformity_p_value)}`,
           `最新P/Q: ${formatNumber(metric?.latest_p)} / ${formatNumber(metric?.latest_q)}`,
         ];
         if (metric?.latest_p2 != null || metric?.latest_q2 != null) {
@@ -979,30 +1039,43 @@ function renderLatestChart(state, reportsBySource) {
   });
 }
 
+export function buildTechnicalGlossaryItems() {
+  return [
+    {
+      title: 'P-value (P)',
+      body: '第5章单个样本检测得到的显著性概率，用于样本通过率判定。若该样本的P_value>=α，且α=0.01，则该样本在该检测项目上通过。',
+    },
+    {
+      title: 'Q-value (Q)',
+      body: '第5章为每个样本计算的分布均匀性输入值。样本集内的Q_value应该在[0,1]上近似均匀；Q值长期扎堆在高位或低位都不是好现象。',
+    },
+    {
+      title: '均匀性 PT',
+      body: '第6.3条对一组Q_value做10个子区间的χ²分布均匀性检验得到PT。若PT>=αT，且αT=0.0001，则样本集通过分布均匀性判定；PT很小表示Q值分布扎堆。',
+    },
+    {
+      title: '样本通过率',
+      body: '第6.2条统计 P_value>=α 的样本数量。当前每日批次使用 s=50，所以门槛按公式计算为 48/50；GM/T 0005-2021 第6.1条规定样本数量为 s=1000。',
+    },
+    {
+      title: '最终项目结论',
+      body: '同一检测项目必须同时满足样本通过率判定和Q_value分布均匀性判定。50/50只说明单样本P_value全部过线；如果PT<αT，仍然应标记为分布未通过。',
+    },
+    {
+      title: 'P2 / Q2',
+      body: '少数检测会给出第二组统计口径，用于描述另一侧结构或补充统计量。判定时应分别看对应的P_value和Q_value。',
+    },
+  ];
+}
+
 function renderTechnicalGlossary() {
   const glossary = document.querySelector('#technical-glossary');
-  glossary.innerHTML = `
+  glossary.innerHTML = buildTechnicalGlossaryItems().map((item) => `
     <div class="glossary-item">
-      <strong>P-value (P)</strong>
-      <p>原始统计量的显著性水平。值过小，说明该结构在随机假设下不太自然。</p>
+      <strong>${escapeHTML(item.title)}</strong>
+      <p>${escapeHTML(item.body)}</p>
     </div>
-    <div class="glossary-item">
-      <strong>Q-value (Q)</strong>
-      <p>同一检验口径下的辅助显著性输出。它通常用于观察偏向方向和分布位置。</p>
-    </div>
-    <div class="glossary-item">
-      <strong>P2 / Q2</strong>
-      <p>少数检测会给出第二组统计口径，用于描述另一侧结构或补充统计量。</p>
-    </div>
-    <div class="glossary-item">
-      <strong>均匀性 P</strong>
-      <p>不是单轮结果，而是 50 轮样本的 Q 值分布是否均匀。单轮好看但分布不均，也不能算稳。</p>
-    </div>
-    <div class="glossary-item">
-      <strong>样本通过率</strong>
-      <p>表示 50 轮里有多少轮单轮通过，用来衡量这个源在该测试上的稳定性。</p>
-    </div>
-  `;
+  `).join('');
 }
 
 function renderTestDetails(state, reportsBySource) {
@@ -1029,7 +1102,7 @@ function renderTestDetails(state, reportsBySource) {
       metricCell('样本通过', samplePass),
       metricCell('门槛要求', sampleThreshold),
       metricCell('样本通过率', formatPercent(item.stats.passRate)),
-      metricCell('均匀性 P', formatNumber(item.stats.uniformityPValue)),
+      metricCell('均匀性 PT', formatNumber(item.stats.uniformityPValue)),
       metricCell('平均 P/Q', `${formatNumber(item.stats.avgP)} / ${formatNumber(item.stats.avgQ)}`),
       metricCell('最新 P/Q', `${formatNumber(item.stats.latestP)} / ${formatNumber(item.stats.latestQ)}`),
     ];
@@ -1039,6 +1112,7 @@ function renderTestDetails(state, reportsBySource) {
     if (item.stats.latestP2 != null || item.stats.latestQ2 != null) {
       cells.push(metricCell('最新 P2/Q2', `${formatNumber(item.stats.latestP2)} / ${formatNumber(item.stats.latestQ2)}`));
     }
+    const verdict = buildTestVerdict(item);
 
     return `
       <article class="test-row">
@@ -1046,7 +1120,7 @@ function renderTestDetails(state, reportsBySource) {
           <div>
             <div class="test-row-title">
               <h3>${escapeHTML(item.name)}</h3>
-              <span class="badge ${item.overallPass ? 'pass' : 'fail'}">${item.overallPass ? '通过' : '未通过'}</span>
+              <span class="badge ${verdict.className}">${escapeHTML(verdict.label)}</span>
             </div>
             <p class="test-category">${escapeHTML(item.category)}</p>
           </div>
