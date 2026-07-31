@@ -8,7 +8,6 @@ on:
     branches:
       - main
     paths:
-      - '.github/workflows/daily-randomness-report.yml'
       - 'bin/randomness-reporter'
       - 'cmd/**'
       - 'config/**'

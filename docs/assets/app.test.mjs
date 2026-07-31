@@ -274,6 +274,7 @@ test('daily workflow uses committed Linux binary for report generation', () => {
   assert.doesNotMatch(workflowText, /go run \.\/cmd\/randomness-reporter/);
   assert.match(workflowText, /push:/);
   assert.match(workflowText, /bin\/randomness-reporter/);
+  assert.doesNotMatch(workflowText, /\.github\/workflows\/daily-randomness-report\.yml/);
   assert.doesNotMatch(workflowText, /docs\/results\/\*\*/);
   assert.doesNotMatch(workflowText, /docs\/assets\/\*\*/);
   assert.doesNotMatch(workflowText, /docs\/index\.html/);
