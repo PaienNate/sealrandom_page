@@ -1,0 +1,14 @@
+{
+  "kind": "lcg-state-prediction-v1",
+  "word_bits": 32,
+  "modulus": "4294967296",
+  "multiplier": 1664525,
+  "increment": 1013904223,
+  "outputs": [
+    461393,
+    214941564,
+    1549997227,
+    1818632718
+  ],
+  "expected_next": 3264102933
+}
